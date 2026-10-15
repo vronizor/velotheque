@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import Connection, select
 
-from velotheque import queries
+from velotheque import backup, queries
 from velotheque.config import get_settings
 from velotheque.db import get_engine
 from velotheque.strava import oauth
@@ -31,6 +31,8 @@ def settings_page(request: Request, conn: Connection = Depends(get_conn)):
             "missing_scopes": sorted(oauth.missing_scopes(auth.scope)) if auth else [],
             "jobs": jobs,
             "export": queries.export_status(conn, settings.sport_types),
+            "backup": backup.state(conn),
+            "backups": backup.history(conn),
             "configured": bool(settings.strava_client_id and settings.strava_client_secret),
             "redirect_uri": settings.redirect_uri,
             "message": request.query_params.get("message"),

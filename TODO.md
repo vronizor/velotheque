@@ -9,10 +9,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Pi access: skipped by choice. Test on local Docker (arm64, same as the Pi); owner git-pulls on the Pi
 - [x] Browser check of the UI: done by the owner, all working
 - [ ] Put `STRAVA_CLIENT_SECRET` in `.env` (never commit it)
-- [ ] Proton Drive CLI on the Pi (M3). Mac build is at `~/Downloads/proton-drive`; docs: https://proton.me/support/drive-cli
-  - M3 VERIFY: Linux arm64 build exists? (docs say macOS/Windows/Linux, arch unspecified)
-  - M3 VERIFY: delete/trash command (not in docs; check `--help`) → else rotate fixed filenames
-  - M3 VERIFY: headless login / session file location (docs only show browser `auth login`)
+- [ ] Proton Drive CLI on the Pi: install linux/arm64 build + `sudo ops/install-backup.sh` + login (README → Backup). VERIFY results are in the M3 section.
 - [ ] Click "Upgrade" in the Strava API dashboard (read limit 100/1,000 → 200/2,000)
 - [ ] Note: the dashboard's own access token only has `scope: read`. The app gets its own token via the OAuth flow, with `read,activity:read_all,profile:read_all`.
 
@@ -21,6 +18,20 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Rate-limit headers: `X-RateLimit-*` / `X-ReadRateLimit-*`, values `"15min,daily"`
 - [x] PostGIS arm64: `postgresql-18-postgis-3` 3.6.x in PGDG bookworm-pgdg
 - [x] 2026 Strava API changes: nothing blocking. API base URL is configurable, Bearer header always sent.
+
+## M3 — Backup to Proton Drive
+- [x] VERIFY proton-drive CLI v0.9.0 (Mac binary + docs): linux/arm64 glibc build exists; `filesystem delete` + `trash` exist → prune by name; headless = `auth login` URL opened elsewhere + PROTON_DRIVE_CREDENTIALS_STORE (keychain | pass | unsafe_file); upload strategies replace/skip/rename/create-new-revision, folders merge. Per-command --help broken in 0.9.0; list --json shape + exit codes undocumented
+- [ ] VERIFY live: `filesystem list --json` shape, upload/trash behaviour, against a throwaway Drive folder (needs the owner to log in on the Mac)
+- [x] Migration 0004: backup_status (+ app reads it)
+- [x] `velotheque backup-status` CLI the host script calls to record success/failure
+- [x] ops/dump-db.sh (root, Docker only) + ops/proton_backup.py (backup user): dump → Velotheque/db/<UTC>.dump; retention 14 daily + 8 weekly (trash)
+- [x] incremental photo upload with a local manifest, batches of 200
+- [x] ops/restore.sh + documented restore test into a scratch DB
+- [x] systemd service + timer units (dedicated user), install notes
+- [x] Header backup indicator (red if last success > 48 h); Settings backup section
+- [x] Tests: retention selection, manifest diff, status recording, indicator
+- [x] Local dry run: 49 MB dump → scratch DB in ~5 s, row counts match; record-status success/failure paths → indicator
+- [ ] README + push
 
 ## M2 (pulled forward): bulk export import
 - [x] `velotheque import-export <zip>`: raw_export_activity (migration 0002), track files copied to DATA_DIR/strava-export/<export>/

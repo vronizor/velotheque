@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly Vélothèque backup to Proton Drive
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

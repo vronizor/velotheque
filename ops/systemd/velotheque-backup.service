@@ -1,0 +1,24 @@
+[Unit]
+Description=Vélothèque backup to Proton Drive
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=velobackup
+Group=velobackup
+EnvironmentFile=/etc/velotheque/backup.env
+# "+" runs these two with full privileges: they only talk to Docker. The upload itself runs
+# as the unprivileged backup user, the only one holding the Proton session.
+ExecStartPre=+/usr/local/lib/velotheque-backup/dump-db.sh
+ExecStart=/usr/bin/python3 /usr/local/lib/velotheque-backup/proton_backup.py
+ExecStopPost=+/usr/local/lib/velotheque-backup/record-status.sh
+TimeoutStartSec=4h
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/velotheque-backup
+UMask=0077

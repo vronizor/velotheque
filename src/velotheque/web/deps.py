@@ -36,4 +36,15 @@ def when(value: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
     return value.strftime(fmt) if value else ""
 
 
-templates.env.filters.update(km=km, whole=whole, duration=duration, hours=hours, when=when)
+def ago(delta) -> str:
+    if delta is None:
+        return ""
+    minutes = int(delta.total_seconds() // 60)
+    if minutes < 60:
+        return f"{minutes} min"
+    if minutes < 48 * 60:
+        return f"{minutes // 60} h"
+    return f"{minutes // (24 * 60)} d"
+
+
+templates.env.filters.update(km=km, whole=whole, duration=duration, hours=hours, when=when, ago=ago)

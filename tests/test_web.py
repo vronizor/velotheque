@@ -136,3 +136,30 @@ def test_photos_are_served_and_shown(client, db, tmp_path, monkeypatch):
 
 def test_settings_lists_export_status(client):
     assert "No export imported yet" in client.get("/settings").text
+
+
+def test_backup_indicator_turns_red_after_48h(client, db):
+    from datetime import UTC, datetime, timedelta
+
+    from velotheque.backup import record
+    from velotheque.tables import backup_status
+
+    assert "backup-stale" in client.get("/backup/indicator").text
+    assert "No backup yet" in client.get("/backup/indicator").text
+
+    with db.begin() as conn:
+        record(conn, ok=True, details={"dump": "x.dump"})
+    fresh = client.get("/backup/indicator").text
+    assert "backup-ok" in fresh and "Backup 0 min ago" in fresh
+
+    with db.begin() as conn:
+        record(conn, ok=False, error="session expired")
+    assert "backup-warn" in client.get("/backup/indicator").text
+
+    with db.begin() as conn:
+        conn.execute(
+            backup_status.update().values(finished_at=datetime.now(UTC) - timedelta(hours=49))
+        )
+    stale = client.get("/backup/indicator").text
+    assert "backup-stale" in stale and "Backup 2 d ago" in stale
+    assert "older than 48 h" in client.get("/settings").text

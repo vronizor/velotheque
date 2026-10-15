@@ -244,6 +244,17 @@ activity_track_simplified = Table(
     Index("ix_activity_track_simplified_geometry", "geometry", postgresql_using="gist"),
 )
 
+backup_status = Table(
+    "backup_status",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("finished_at", TZ, nullable=False, server_default=func.now()),
+    Column("ok", Boolean, nullable=False),
+    Column("error", Text),
+    Column("details", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Index(None, "ok", "finished_at"),
+)
+
 # Curated
 
 saved_view = Table(

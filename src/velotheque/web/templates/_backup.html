@@ -1,0 +1,6 @@
+{% set level = "stale" if backup.stale else ("warn" if backup.last_failed else "ok") %}
+<a id="backup" class="backup backup-{{ level }}" href="/settings#backup"
+   title="{% if backup.last_failed %}Last backup run failed: {{ backup.last_run.error }}{% elif backup.last_success %}Last successful backup {{ backup.last_success | when }} UTC{% else %}No successful backup yet{% endif %}">
+  <span class="dot" aria-hidden="true"></span>
+  {% if backup.last_success %}Backup {{ backup.age | ago }} ago{% else %}No backup yet{% endif %}
+</a>

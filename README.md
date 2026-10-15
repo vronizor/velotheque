@@ -4,12 +4,13 @@
 
 A self-hosted explorer for my own Strava cycling history, running on a Raspberry Pi. It's single-user and read-only towards Strava.
 
-Milestones 1 and 2 (this version) cover:
+Milestones 1–3 (this version) cover:
 - Strava OAuth and a resumable **Sync now** (activities, details, streams)
 - the Strava bulk export import, with photos
 - normalized rides and tracks
 - an **Explore** page: a map, list and totals; filters for date, type, bike, distance, elevation, duration, photos and text search, with live counts next to each option; drawing a rectangle or polygon on the map, or "Filter to this view"; and saved views
 - a **Ride** page with a photo gallery
+- nightly backups of the database and photos to Proton Drive, a tested restore, and a backup indicator in the header
 
 The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress is tracked in [`TODO.md`](TODO.md).
 
@@ -124,6 +125,95 @@ Strava's API has no documented endpoint that lists every photo of an activity. S
   - **Filter to this view**: uses the visible map.
   - A ride matches if its track crosses the area. Panning on its own never filters.
 
+## Backup to Proton Drive
+
+> **A backup isn't trusted until a restore has been tested.** Run the restore test below after setting this up, and again from time to time.
+
+**Schedule:** a systemd timer runs every night at about 03:30.
+
+**Each run:**
+1. **Dump** (as root, only to reach Docker): `pg_dump -Fc` from the `db` container into `/var/lib/velotheque-backup/dumps/`. The archive is checked with `pg_restore --list` before anything is uploaded.
+2. **Upload** (as the unprivileged `velobackup` user, the only account holding the Proton session):
+   - the dump to `Velotheque/db/velotheque-<UTC date>T<time>Z.dump`
+   - photos and videos not yet in the local manifest (`photos-manifest.tsv`) to `Velotheque/photos/<activity>/`, in batches of 200. Thumbnails aren't uploaded; they're rebuilt after a restore.
+3. **Prune:** keep the newest dump of each of the last 14 days and of each of the last 8 ISO weeks. The rest is moved to the Proton Drive trash.
+4. **Record** the result (as root): a `backup_status` row, which drives the header dot.
+   - green: the last success is under 48 h old
+   - amber: the last run failed, but a recent success exists
+   - red: no successful backup in 48 h
+
+The Proton-specific code is all in `ops/proton_backup.py` (Python standard library only), so swapping the tool later means changing one small file.
+
+### What I verified about the `proton-drive` CLI (v0.9.0)
+
+- **Builds:** there's an official Linux arm64 (glibc) build, with SHA-512 checksums on Proton's download page.
+- **Deleting:** it can delete remote files (`filesystem delete` and `filesystem trash`). Old dumps are pruned by name, not by overwriting fixed file names.
+- **Headless login:** `auth login` prints a URL you can open on another device. Where the session is stored is set by `PROTON_DRIVE_CREDENTIALS_STORE`:
+  - `keychain` (default): needs a desktop keyring
+  - `pass`: GPG-encrypted, the documented headless option
+  - `unsafe_file`: plain JSON, which Proton calls testing only
+- **Version pin:** the CLI is pre-1.0, so the backup refuses to run unless `proton-drive --version` matches `PROTON_DRIVE_VERSION`.
+- **Not verified:** per-command `--help` doesn't work in 0.9.0, and exit codes and the `--json` listing format aren't documented. The script treats any non-zero exit as a failure, and parses listings tolerantly.
+
+### Setup on the Pi (once)
+
+```sh
+# 1. The CLI: download the linux/arm64 build from https://proton.me/drive/download,
+#    check its SHA-512 against the published one, then:
+sudo install -m 0755 proton-drive /usr/local/bin/proton-drive
+proton-drive --version            # must match PROTON_DRIVE_VERSION in backup.env
+
+# 2. User, state dir, systemd units and /etc/velotheque/backup.env
+sudo apt install pass             # for PROTON_DRIVE_CREDENTIALS_STORE=pass
+sudo ops/install-backup.sh        # creates backup.env on the first run; edit it, run again
+
+# 3. A GPG key and password store for the backup user (no passphrase: the job runs
+#    unattended, so file permissions are what protect it; the home dir is 700)
+sudo -u velobackup -H gpg --batch --pinentry-mode loopback --passphrase '' \
+  --quick-gen-key velotheque-backup default default never
+sudo -u velobackup -H pass init velotheque-backup
+
+# 4. Log the backup user in. Open the printed URL on your laptop and finish there.
+sudo -u velobackup -H env PROTON_DRIVE_CREDENTIALS_STORE=pass proton-drive auth login
+
+# 5. First run (also uploads every photo once), then check
+sudo systemctl start velotheque-backup
+journalctl -u velotheque-backup -n 50 --no-pager
+```
+
+Re-run `sudo ops/install-backup.sh` after every `git pull` that changes `ops/`.
+
+**When the Proton session expires**, the next run fails: the header dot turns amber, then red after 48 h, and Settings shows the error. Log in again with step 4, then `sudo systemctl start velotheque-backup`.
+
+**If `pass` is too fiddly**, set `PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file` in `backup.env` and redo step 4. The session is then a plain file under `/var/lib/velotheque-backup/.local/share/proton-drive-cli/`. The script keeps it `chmod 600` in a `700` directory owned by `velobackup`.
+
+### Restore
+
+```sh
+# Restore test: newest dump from Proton Drive into a scratch database, compared with live
+sudo ops/restore.sh --latest-from-drive
+#   → "RESTORE TEST OK: row counts match the live database"
+sudo ops/restore.sh --drop-scratch
+
+# Or from a local file (e.g. /var/lib/velotheque-backup/dumps/…)
+sudo ops/restore.sh /var/lib/velotheque-backup/dumps/velotheque-2026-10-15T0330Z.dump
+
+# Real disaster recovery: replace the live database (stops the app; asks you to type its name)
+sudo ops/restore.sh --live /path/to/velotheque-….dump
+```
+
+To restore photos, download the folder back, then rebuild the thumbnails and photo rows:
+
+```sh
+sudo -u velobackup -H env PROTON_DRIVE_CREDENTIALS_STORE=pass proton-drive filesystem download \
+  --file-conflict-strategy skip --folder-conflict-strategy merge \
+  /my-files/Velotheque/photos /tmp/photos-restore
+sudo rsync -a /tmp/photos-restore/photos/ "$VELOTHEQUE_DATA_DIR/photos/"
+docker compose exec app velotheque normalize
+```
+
+Tested on the Mac: a 49 MB dump of the real data restored into a scratch database in about 5 s, with row counts matching the live database.
+
 ## CLI
 
 ```sh
@@ -133,6 +223,7 @@ docker compose exec app velotheque sync --activity 1234567890
 docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
 docker compose exec app velotheque normalize         # rebuild normalized tables from raw (--force-tracks re-parses export files)
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables
+docker compose exec app velotheque backup-status --ok|--error MSG   # used by the backup service
 ```
 
 ## Read-only SQL access

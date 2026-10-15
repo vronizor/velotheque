@@ -41,6 +41,11 @@ code { font-size: 0.9em; background: var(--cream); padding: 0 4px; border-radius
 .topbar nav { display: flex; gap: 16px; }
 .topbar nav a:hover { text-decoration: underline; }
 
+.backup { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; white-space: nowrap; }
+.backup .dot { width: 9px; height: 9px; border-radius: 50%; background: #7bc47f; }
+.backup-warn .dot { background: #ffc46b; }
+.backup-stale { color: #ff8a7a !important; }
+.backup-stale .dot { background: var(--red); box-shadow: 0 0 0 2px rgb(214 58 42 / 0.35); }
 .sync { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
 .sync-status { opacity: 0.85; }
 .sync .status-failed { color: #ff8a7a; }
@@ -184,6 +189,7 @@ tr.hl td { background: #f6dcd6; }
   .results { order: 2; }
   .sidebar { order: 3; }
   .sync-status { display: none; }
+  .backup { font-size: 0; gap: 0; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
   .map-tools { flex-wrap: wrap; right: 52px; }
   .map-pane { height: 50vh; }

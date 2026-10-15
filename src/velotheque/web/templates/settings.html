@@ -42,6 +42,31 @@
     {% endif %}
   </section>
 
+  <section id="backup">
+    <h2>Backups</h2>
+    {% if backup.last_success %}
+      <p class="{{ 'error' if backup.stale else '' }}">Last successful backup {{ backup.last_success | when }} UTC ({{ backup.age | ago }} ago){% if backup.stale %}, older than 48 h{% endif %}.</p>
+    {% else %}
+      <p class="error">No successful backup yet. Your curated data (bikes, components, routes, saved views) only exists on this machine until one runs. See “Backup” in the README.</p>
+    {% endif %}
+    {% if backups %}
+    <div class="table-wrap">
+      <table class="jobs">
+        <thead><tr><th>Finished (UTC)</th><th>Result</th><th>Details</th></tr></thead>
+        <tbody>
+        {% for b in backups %}
+          <tr>
+            <td>{{ b.finished_at | when }}</td>
+            <td><span class="status-{{ 'succeeded' if b.ok else 'failed' }}">{{ "ok" if b.ok else "failed" }}</span></td>
+            <td class="small">{% if b.error %}{{ b.error }}{% else %}{% for k, v in b.details.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
   <section id="history">
     <h2>Sync history</h2>
     {% if jobs %}
