@@ -50,6 +50,8 @@ tailscale serve status                # → https://<pi>.<tailnet>.ts.net proxie
 
 The first time, Tailscale may ask you to enable HTTPS certificates for the tailnet; follow its link. To stop serving, run `sudo tailscale serve reset`.
 
+**Option A2: one name per app with [Tailscale Services](https://tailscale.com/docs/features/tailscale-services)**: gives `https://velo.<tailnet>.ts.net`. Tag the Pi (e.g. `tag:server`), define a service `velo` with port `tcp:443` in the admin console, run `sudo tailscale serve --service=svc:velo --https=443 127.0.0.1:8010`, then approve the host on the Services page. Leave Funnel off. Set `BASE_URL` and the Strava callback domain to that name.
+
 **Option B: an existing Caddy on the host**:
 
 ```caddy

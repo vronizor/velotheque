@@ -21,7 +21,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Pi deployment notes
 - No SSD mounted yet: data on the SD card at /srv/velotheque (not under /mnt/ssd, so a later mount can't hide it). 15 GB free. Move to the SSD (rsync -aHAX, then change VELOTHEQUE_DATA_DIR in .env and backup.env) before Milestone 4's curated data exists.
-- No Caddy on the Pi (the spec assumed one): use `tailscale serve --bg <APP_PORT>` for HTTPS on the MagicDNS name.
+- No Caddy on the Pi (the spec assumed one): HTTPS + names via Tailscale Services (`tailscale serve --service=svc:<name> --https=443 127.0.0.1:<port>`; Pi tagged tag:server; Funnel left off). BASE_URL and the Strava callback domain use the service name.
+- /etc/velotheque/backup.env on the Pi: VELOTHEQUE_DATA_DIR=/srv/velotheque until the SSD move
 - Port 8000 (and 8001, 8080, 80, 53, 3000) are used by other services on the Pi: APP_PORT=8010 there.
 
 ## Owner feedback (2026-10-15)
@@ -137,6 +138,6 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Web smoke tests (TestClient): explore page/partial, geojson filters, ride page, OAuth state check (38 tests total)
 - [x] README: setup, env vars, Strava connection (both callback flows), read-only role, Caddy snippet
 - [x] Tests: filter builder, sync (MockTransport), normalize, rebuild-derived idempotency, rate limiter (32 passing)
-- [~] scripts/seed_synthetic.py ✔; Mac: 5k rides → 3.7 MB gz / 0.58 s unfiltered, <0.15 s filtered. Pi measurement pending.
+- [x] scripts/seed_synthetic.py ✔; Mac: 5k rides → 3.7 MB gz / 0.58 s unfiltered, <0.15 s filtered. Pi (real 390 rides): page 0.04 s, full map 0.84 MB gz in 0.23 s ✔ (<1 s)
 - [x] ruff check + format clean
 - [x] Push to remote (github.com/vronizor/velotheque, public: keep personal hostnames/IPs out of tracked files)
