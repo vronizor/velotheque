@@ -1,0 +1,17 @@
+<div id="saved-views">
+  {% if message %}<p class="muted small">{{ message }}</p>{% endif %}
+  {% if views %}
+    <ul class="views">
+      {% for v in views %}
+        <li>
+          <a href="/{% if v.query_string %}?{{ v.query_string }}{% endif %}">{{ v.name }}</a>
+          <button type="button" class="link-button" title="Delete “{{ v.name }}”"
+                  hx-delete="/views/{{ v.id }}" hx-target="#saved-views" hx-swap="outerHTML"
+                  hx-confirm="Delete the saved view “{{ v.name }}”?">×</button>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted small">Save the current filters to come back to them later.</p>
+  {% endif %}
+</div>

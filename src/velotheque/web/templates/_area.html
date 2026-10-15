@@ -1,0 +1,14 @@
+<fieldset id="area-filter" class="area-filter" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <legend>Map area</legend>
+  <input type="hidden" name="bbox" id="f-bbox" form="filters" value="{{ state.raw.get('bbox', [''])[0] }}">
+  <input type="hidden" name="area" id="f-area" form="filters" value="{{ state.raw.get('area', [''])[0] }}">
+  <p class="muted small" id="area-status">
+    {% if state.get('bbox') and state.get('area') %}Rectangle and polygon
+    {% elif state.get('bbox') %}Rectangle
+    {% elif state.get('area') %}Polygon
+    {% else %}None. Draw on the map or use “Filter to this view”.{% endif %}
+  </p>
+  {% if state.get('bbox') or state.get('area') %}
+    <button type="button" class="link-button" data-action="clear-area">Clear map area</button>
+  {% endif %}
+</fieldset>

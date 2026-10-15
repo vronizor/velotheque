@@ -10,8 +10,9 @@ from sqlalchemy import Engine
 
 from velotheque.config import Settings
 from velotheque.derive import derive_activities
-from velotheque.exportrow import gear_id, sport_type
+from velotheque.exportrow import gear_id, media_paths, sport_type
 from velotheque.normalize import normalize_activity
+from velotheque.photos import materialize_photos, media_filename, photo_dir
 from velotheque.raw import store_raw
 from velotheque.tables import raw_export_activity
 
@@ -24,16 +25,19 @@ def read_activities_csv(data: bytes) -> pl.DataFrame:
     return pl.read_csv(io.BytesIO(data), infer_schema_length=0)
 
 
-def _extract(archive: zipfile.ZipFile, member: str, target_root: Path) -> Path:
-    relative = PurePosixPath(member)
-    if relative.is_absolute() or ".." in relative.parts:
-        raise ValueError(f"unsafe path in export: {member}")
-    target = target_root.joinpath(*relative.parts)
+def _extract(archive: zipfile.ZipFile, member: str, target: Path) -> Path:
     if not target.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
         with archive.open(member) as src, open(target, "wb") as dst:
             shutil.copyfileobj(src, dst)
     return target
+
+
+def _safe_join(root: Path, member: str) -> Path:
+    relative = PurePosixPath(member)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"unsafe path in export: {member}")
+    return root.joinpath(*relative.parts)
 
 
 @dataclass
@@ -43,6 +47,7 @@ class ImportReport:
     files: int = 0
     cycling: int = 0
     normalized: int = 0
+    photos: int = 0
     missing_files: list[int] = field(default_factory=list)
     unmatched_gear: list[tuple[int, str, str]] = field(default_factory=list)
 
@@ -66,7 +71,7 @@ def import_export(
             member = row.get("Filename")
             file_path = None
             if member and member in members:
-                _extract(archive, member, root)
+                _extract(archive, member, _safe_join(root, member))
                 file_path = f"{EXPORT_DIR}/{export_name}/{member}"
                 report.files += 1
             elif member:
@@ -82,6 +87,10 @@ def import_export(
                     report.new_or_changed += 1
             if sport_type(row.get("Activity Type")) in settings.sport_types:
                 cycling.append(source_id)
+                for media in media_paths(row.get("Media")):
+                    if media in members:
+                        target = photo_dir(settings, source_id) / media_filename(media)
+                        _extract(archive, media, target)
                 if row.get("Activity Gear") and not gear_id(row):
                     report.unmatched_gear.append(
                         (source_id, row.get("Activity Name") or "", row["Activity Gear"])
@@ -93,6 +102,7 @@ def import_export(
             activity_id = normalize_activity(conn, source_id, settings)
             if activity_id is not None:
                 derive_activities(conn, [activity_id])
+                report.photos += materialize_photos(conn, activity_id, source_id, settings)
                 report.normalized += 1
         if i % 50 == 0:
             progress(f"normalized {i}/{len(cycling)} rides")

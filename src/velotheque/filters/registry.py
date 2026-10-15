@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import Any
 from urllib.parse import urlencode
 
-from sqlalchemy import ColumnElement, Table
+from sqlalchemy import ColumnElement, Connection, Table, func, select
 
 
 class Entity(StrEnum):
@@ -20,7 +20,7 @@ class Field:
     parse: Callable[[str], Any]
     where: Callable[[Table, list[Any]], ColumnElement[bool]]
     multi: bool = False
-    facet: Callable | None = None
+    facet: Callable[[Table], ColumnElement] | None = None
 
 
 REGISTRY: dict[str, Field] = {}
@@ -92,3 +92,21 @@ def build_where(
             continue
         clauses.append(f.where(table, values))
     return clauses
+
+
+def facet_counts(
+    conn: Connection, state: FilterState, entity: Entity, table: Table, param: str
+) -> dict[Any, int]:
+    """Counts per value with every active filter except this field's own, so each count
+    says what ticking that value would give."""
+    f = REGISTRY[param]
+    if f.facet is None:
+        raise ValueError(f"{param} is not facetable")
+    value = f.facet(table).label("value")
+    rows = conn.execute(
+        select(value, func.count())
+        .select_from(table)
+        .where(*build_where(state, entity, table, exclude=[param]))
+        .group_by(value)
+    )
+    return dict(rows.all())

@@ -20,6 +20,7 @@ def ride_page(activity_id: int, request: Request, conn: Connection = Depends(get
         {
             "ride": ride,
             "track": queries.ride_track_geojson(conn, activity_id),
+            "photos": queries.ride_photos(conn, activity_id),
             "map_style_url": get_settings().map_style_url,
         },
     )

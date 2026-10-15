@@ -4,11 +4,12 @@
 
 A self-hosted explorer for my own Strava cycling history, running on a Raspberry Pi. It's single-user and read-only towards Strava.
 
-Milestone 1 (this version) covers:
+Milestones 1 and 2 (this version) cover:
 - Strava OAuth and a resumable **Sync now** (activities, details, streams)
+- the Strava bulk export import, with photos
 - normalized rides and tracks
-- an **Explore** map and list with date, type, bike, distance, elevation and duration filters
-- a **Ride** page
+- an **Explore** page: a map, list and totals; filters for date, type, bike, distance, elevation, duration, photos and text search, with live counts next to each option; drawing a rectangle or polygon on the map, or "Filter to this view"; and saved views
+- a **Ride** page with a photo gallery
 
 The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress is tracked in [`TODO.md`](TODO.md).
 
@@ -107,7 +108,21 @@ How it combines with the API:
 - **Tracks:** the priority is API streams, then the export's track file, then Strava's coarse polyline.
 - **API budget:** a sync skips the detail and streams calls for rides the export already covers, so after an import a sync only costs a handful of API calls.
 
-Photos from the export (`media/`) aren't imported yet. That's planned for Milestone 2.
+Photos and videos are copied to `$VELOTHEQUE_DATA_DIR/photos/<strava activity id>/`, and about 400 px thumbnails are made under `thumbs/`.
+
+Strava's API has no documented endpoint that lists every photo of an activity. So for rides newer than your export, a sync stores only the **primary** photo, taken from the activity details at no extra API cost. Importing a newer export later fills in the rest. Photos are de-duplicated by Strava's photo UUID, which is also the export's media file name.
+
+## Search and filters
+
+- **One state everywhere:** all filters live in the URL, so every view can be bookmarked, the back button works, and a saved view is just a named query string.
+- **How filters combine:** values within one field are ORed, and different fields are ANDed.
+- **Counts:** the number next to each type, bike or photos option counts every other active filter except that field's own. It shows what ticking that option would give.
+- **Search** (`q`) matches the start of every word in the name and description, ignoring accents (`valencia` finds “València”). Names also get a typo-tolerant match (`galibeir` finds “Galibier”). There's no language stemming, because titles mix French, Spanish, Catalan and English.
+- **Map area:**
+  - **Rectangle**: click two opposite corners.
+  - **Polygon**: click the corners, then click the first point again to close it.
+  - **Filter to this view**: uses the visible map.
+  - A ride matches if its track crosses the area. Panning on its own never filters.
 
 ## CLI
 

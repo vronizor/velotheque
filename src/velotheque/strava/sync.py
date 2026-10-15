@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from velotheque.config import Settings
 from velotheque.derive import derive_activities
 from velotheque.normalize import normalize_activity, normalize_bikes
+from velotheque.photos import materialize_photos
 from velotheque.raw import store_raw
 from velotheque.strava.client import StravaClient
 from velotheque.strava.oauth import NotConnected
@@ -140,11 +141,12 @@ def list_after(conn: Connection, overlap_days: int) -> int:
     return int((latest - timedelta(days=overlap_days)).timestamp())
 
 
-def _ingest(engine: Engine, settings: Settings, source_id: int) -> None:
+def _ingest(engine: Engine, settings: Settings, source_id: int, http=None) -> None:
     with engine.begin() as conn:
         activity_id = normalize_activity(conn, source_id, settings)
         if activity_id is not None:
             derive_activities(conn, [activity_id])
+            materialize_photos(conn, activity_id, source_id, settings, http)
 
 
 def _sync_athlete(engine: Engine, client: StravaClient) -> None:
@@ -229,7 +231,7 @@ def fetch_activity(
                 {"source_id": source_id},
                 {"http_status": status},
             )
-    _ingest(engine, settings, source_id)
+    _ingest(engine, settings, source_id, client.http)
 
 
 def pending(conn: Connection, sport_types) -> list:

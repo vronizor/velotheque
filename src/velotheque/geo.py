@@ -30,3 +30,49 @@ def multilinestring_wkt(segments: list[list]) -> str:
         "(" + ", ".join(f"{lng} {lat}" for lat, lng in segment) + ")" for segment in segments
     )
     return f"MULTILINESTRING({parts})"
+
+
+def decode_polyline(encoded: str, precision: int = 5) -> list[tuple[float, float]]:
+    """Google encoded polyline → [(lat, lng), …]. Raises ValueError on malformed input."""
+    factor = 10**precision
+    coords, index, lat, lng = [], 0, 0, 0
+    while index < len(encoded):
+        deltas = []
+        for _ in range(2):
+            shift = result = 0
+            while True:
+                if index >= len(encoded):
+                    raise ValueError("truncated polyline")
+                byte = ord(encoded[index]) - 63
+                index += 1
+                if byte < 0 or byte > 63:
+                    raise ValueError("invalid polyline character")
+                result |= (byte & 0x1F) << shift
+                shift += 5
+                if byte < 0x20:
+                    break
+            deltas.append(~(result >> 1) if result & 1 else result >> 1)
+        lat += deltas[0]
+        lng += deltas[1]
+        coords.append((lat / factor, lng / factor))
+    return coords
+
+
+def encode_polyline(coords: list[tuple[float, float]], precision: int = 5) -> str:
+    factor = 10**precision
+    out, prev_lat, prev_lng = [], 0, 0
+    for lat, lng in coords:
+        ilat, ilng = round(lat * factor), round(lng * factor)
+        for delta in (ilat - prev_lat, ilng - prev_lng):
+            value = ~(delta << 1) if delta < 0 else delta << 1
+            while value >= 0x20:
+                out.append(chr((0x20 | (value & 0x1F)) + 63))
+                value >>= 5
+            out.append(chr(value + 63))
+        prev_lat, prev_lng = ilat, ilng
+    return "".join(out)
+
+
+def polygon_wkt(ring: list[tuple[float, float]]) -> str:
+    points = list(ring) + [ring[0]]
+    return "POLYGON((" + ", ".join(f"{lng} {lat}" for lat, lng in points) + "))"

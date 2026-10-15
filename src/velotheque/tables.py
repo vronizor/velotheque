@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Computed,
     DateTime,
     Double,
     ForeignKey,
@@ -21,7 +22,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 
 metadata = MetaData(
     naming_convention={
@@ -35,6 +36,10 @@ metadata = MetaData(
 
 TZ = DateTime(timezone=True)
 MULTILINE = Geometry("MULTILINESTRING", srid=4326, spatial_index=False)
+SEARCH_TSV = (
+    "to_tsvector('simple'::regconfig, "
+    "vt_unaccent(coalesce(name, '') || ' ' || coalesce(description, '')))"
+)
 
 
 def _now():
@@ -175,10 +180,36 @@ activity = Table(
     Column("trainer", Boolean, nullable=False, server_default=text("false")),
     Column("has_photos", Boolean, nullable=False, server_default=text("false")),
     Column("synced_at", TZ, nullable=False, server_default=func.now()),
+    Column(
+        "search_tsv",
+        TSVECTOR,
+        Computed(SEARCH_TSV, persisted=True),
+    ),
     UniqueConstraint("source", "source_id"),
     Index(None, "start_at_local"),
     Index(None, "type"),
     Index(None, "bike_id"),
+    Index("ix_activity_search_tsv", "search_tsv", postgresql_using="gin"),
+)
+
+activity_photo = Table(
+    "activity_photo",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "activity_id", BigInteger, ForeignKey("activity.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("unique_id", Text, nullable=False),
+    Column("source", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("file_path", Text, nullable=False),
+    Column("thumb_path", Text),
+    Column("width", Integer),
+    Column("height", Integer),
+    Column("position", SmallInteger, nullable=False, server_default=text("0")),
+    UniqueConstraint("activity_id", "unique_id"),
+    CheckConstraint("source IN ('export', 'strava')", name="source"),
+    CheckConstraint("kind IN ('image', 'video')", name="kind"),
 )
 
 activity_track = Table(
@@ -211,6 +242,19 @@ activity_track_simplified = Table(
     PrimaryKeyConstraint("activity_id", "level"),
     CheckConstraint("level IN ('overview', 'detail')", name="level"),
     Index("ix_activity_track_simplified_geometry", "geometry", postgresql_using="gist"),
+)
+
+# Curated
+
+saved_view = Table(
+    "saved_view",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("entity", Text, nullable=False, server_default="rides"),
+    Column("query_string", Text, nullable=False),
+    Column("created_at", TZ, nullable=False, server_default=func.now()),
+    UniqueConstraint("entity", "name"),
 )
 
 DERIVED_TABLES = (activity_track_simplified,)

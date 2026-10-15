@@ -7,10 +7,10 @@ from datetime import datetime
 import pytest
 from sqlalchemy import func, select
 
-from tests.fake_strava import SETTINGS, summary, sync
+from tests.fake_strava import SETTINGS, jpeg_bytes, summary, sync
 from velotheque.export import import_export
 from velotheque.exportrow import as_api_payload
-from velotheque.tables import activity, activity_track, bike, raw_export_activity
+from velotheque.tables import activity, activity_photo, activity_track, bike, raw_export_activity
 from velotheque.trackfiles import parse_gpx, parse_tcx
 
 HEADER = [
@@ -61,7 +61,7 @@ ROWS = [
 ]  # fmt: skip
 
 
-def make_export(path, rows=ROWS, description="Lovely day"):
+def make_export(path, rows=ROWS, description="Lovely day", with_media=True):
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(HEADER)
@@ -76,6 +76,9 @@ def make_export(path, rows=ROWS, description="Lovely day"):
         archive.writestr("activities/101.gpx", gpx())
         archive.writestr("activities/102.tcx.gz", gzip.compress(tcx()))
         archive.writestr("activities/103.gpx", gpx(lat=46.0))
+        if with_media:
+            archive.writestr("media/a.jpg", jpeg_bytes())
+            archive.writestr("media/b.mp4", b"not really a video")
     return path
 
 
@@ -221,3 +224,54 @@ def test_byte_typed_fit_fields_are_decoded_big_endian():
     assert _fit_value(frame, "altitude") == 0x2B57 / 5 - 500
     assert _fit_value(frame, "distance") == 123.45
     assert _fit_value(frame, "heart_rate") is None
+
+
+def photos(db):
+    with db.connect() as conn:
+        return conn.execute(
+            select(activity_photo).order_by(activity_photo.c.activity_id, activity_photo.c.position)
+        ).all()
+
+
+def test_export_media_become_photos_with_thumbnails(db, settings, tmp_path):
+    path = make_export(tmp_path / "export_1.zip")
+    report = import_export(db, settings, path)
+
+    found = photos(db)
+    assert report.photos == 2
+    assert [(p.unique_id, p.kind, p.source) for p in found] == [
+        ("a", "image", "export"),
+        ("b", "video", "export"),
+    ]
+    assert found[0].file_path == "photos/1/a.jpg" and (found[0].width, found[0].height) == (
+        800,
+        600,
+    )
+    thumb = settings.data_dir / found[0].thumb_path
+    assert thumb.exists()
+    from PIL import Image
+
+    assert max(Image.open(thumb).size) == 400
+    assert found[1].thumb_path is None
+
+    import_export(db, settings, path)
+    assert len(photos(db)) == 2
+
+
+def test_api_primary_photo_downloaded_once_and_deduplicated(db, settings, tmp_path, strava):
+    primary = {"unique_id": "a", "urls": {"600": "https://cdn.test/a-600.jpg"}}
+    strava.add(summary(1, total_photo_count=1, photos={"primary": primary, "count": 1}))
+    strava.add(summary(2, day=1, total_photo_count=1,
+                       photos={"primary": {**primary, "unique_id": "z"}, "count": 1}))  # fmt: skip
+
+    sync(db, strava, settings=settings)
+
+    found = {(p.unique_id, p.source) for p in photos(db)}
+    assert found == {("a", "strava"), ("z", "strava")}
+    assert (settings.data_dir / "photos/2/z.jpg").exists()
+
+    import_export(db, settings, make_export(tmp_path / "export_1.zip"))
+    by_ride = {}
+    for p in photos(db):
+        by_ride.setdefault(p.unique_id, p.source)
+    assert by_ride["a"] == "export" and by_ride["z"] == "strava"

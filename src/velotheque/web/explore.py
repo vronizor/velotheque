@@ -30,6 +30,9 @@ def results_context(conn: Connection, state: FilterState, sort: Sort) -> dict:
     query = state.to_query()
     return {
         "state": state,
+        "facets": queries.ride_facets(conn, state),
+        "types": queries.ride_types(conn),
+        "bikes": queries.bikes(conn),
         "sort": sort,
         "sort_columns": SORT_COLUMNS,
         "rows": queries.ride_rows(conn, state, sort),
@@ -45,10 +48,9 @@ def explore(request: Request, conn: Connection = Depends(get_conn)):
     state = _state(request)
     context = results_context(conn, state, Sort.parse(request.query_params.get("sort")))
     if request.headers.get("HX-Request") and request.headers.get("HX-Target") == "results":
-        return templates.TemplateResponse(request, "_results.html", context)
+        return templates.TemplateResponse(request, "_results.html", {**context, "oob": True})
     context.update(
-        types=queries.ride_types(conn),
-        bikes=queries.bikes(conn),
+        views=queries.saved_views(conn),
         map_style_url=get_settings().map_style_url,
     )
     return templates.TemplateResponse(request, "explore.html", context)

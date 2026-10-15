@@ -28,8 +28,30 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Gear via the CSV `Bike` column → `b<id>` (exact); unmatched cycling gear listed by the CLI
 - [x] Normalize merge: API wins for metadata; tracks streams > export > polyline; sync skips detail/streams for export-covered rides
 - [x] Real export imported locally: 390 rides, 341 tracks (4 Rides + 45 Virtual Rides have no GPS), 7 bikes, 18,958 km; map 0.84 MB gz / 0.12 s
-- [ ] Photos: copy media/ to DATA_DIR/photos/{activity_id}/, thumbnails, gallery (649 files incl. mp4)
-- [ ] Unmatched-gear list in the UI (currently CLI output only)
+
+## M2 — History + search (remaining)
+### Photos
+- [x] VERIFY: no documented endpoint lists all photos of an activity (detail payload has only the primary, sizes 100/600). Took the spec's fallback: primary photo via the detail we already fetch + newer exports fill in the rest. primary.unique_id == export media file UUID (checked on a real ride) → dedupe key
+- [x] Migration 0003: activity_photo, saved_view, search column (raw API photo payloads not needed: the detail payload is already raw)
+- [x] Export media → DATA_DIR/photos/{activity_id}/ + ~400px thumbnails (Pillow); videos kept, no thumbnail
+- [x] Sync: primary photo from the detail payload (no extra API call), downloaded from Strava's CDN
+- [x] Ride page gallery (thumbnails → full size; videos inline)
+### Search + facets
+- [x] Migration: unaccent + pg_trgm, immutable `vt_unaccent()`, generated tsvector on activity (simple config), trigram index on name
+- [x] `q` filter: prefix full-text over name/description OR fuzzy word-similarity on name
+- [x] Facet counts for type, bike, photos (each excluding its own field), refreshed with results (htmx OOB)
+- [x] `photos` filter (has photos)
+### Map drawing
+- [x] `bbox` + `area` (encoded polyline) filters on track geometry (GiST)
+- [x] Vendor Terra Draw + MapLibre adapter; draw rectangle / polygon tools; "Filter to this view"; clear; show active area on the map
+### Saved views
+- [x] saved_view table; "Save view" (name → query string); list + delete in the sidebar
+### Misc
+- [x] Real data: 517 photos + 14 videos on 132 rides (440 MB); headless-browser check of filters, facets, search, rectangle/polygon/view drawing, saved views, back button, gallery + lightbox, phone layout
+- [x] Phone layout: map → results → filters order on narrow screens
+- [x] Settings: export import summary + rides whose gear couldn't be matched
+- [x] Tests: q/unaccent/fuzzy, facets exclude own field, bbox/area, saved views, photo import
+- [x] README + push
 
 ## M2 notes (gathered early)
 - Bulk export at `data/imports/` (gitignored): ~663 activity files, 642 media, 78 routes

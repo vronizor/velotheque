@@ -23,6 +23,25 @@
     <p class="muted small">Redirect URI: <code>{{ redirect_uri }}</code>. Its host must match the app's “Authorization Callback Domain” on strava.com/settings/api.</p>
   </section>
 
+  <section id="export">
+    <h2>Strava bulk export</h2>
+    {% if export.rows %}
+      <p>{{ export.rows }} activities from {{ export.exports | join(", ") }}, last imported {{ export.last_import | when }} UTC · {{ export.photos }} photos and videos.</p>
+      {% if export.unmatched %}
+        <p>These rides list a bike the export doesn't identify, so they have no bike here. Fix the bike on Strava, then use “Refresh from Strava” on the ride:</p>
+        <ul>
+          {% for r in export.unmatched %}
+            <li>{% if r.activity_id %}<a href="/rides/{{ r.activity_id }}">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %} <span class="muted">· {{ r.date }} · “{{ r.gear }}”</span></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Every ride's bike was matched to a Strava bike.</p>
+      {% endif %}
+    {% else %}
+      <p class="muted">No export imported yet. See the README: <code>velotheque import-export /data/imports/export_XXXX.zip</code>.</p>
+    {% endif %}
+  </section>
+
   <section id="history">
     <h2>Sync history</h2>
     {% if jobs %}

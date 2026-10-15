@@ -124,3 +124,97 @@ def test_route_only_fields_skip_rides():
     assert all(Entity.RIDES in f.entities or Entity.ROUTES in f.entities for f in REGISTRY.values())
     state = FilterState.from_items([("type", "Ride")])
     assert build_where(state, Entity.ROUTES, activity) == []
+
+
+SEARCHABLE = [
+    # source_id, name, description, has_photos, track start (lat, lng)
+    (11, "Col du Galibier", "Montée par le Lautaret", True, (45.06, 6.41)),
+    (12, "València → Xàtiva", None, False, (39.47, -0.38)),
+    (13, "Sortie café", "Pause à la boulangerie de Sète", True, (43.40, 3.69)),
+    (14, "Évasion gravel", "Chemins blancs", False, None),
+]
+
+
+@pytest.fixture
+def searchable(conn):
+    from sqlalchemy import text
+
+    for sid, name, description, photos, start in SEARCHABLE:
+        activity_id = conn.execute(
+            insert(activity)
+            .values(
+                source_id=sid,
+                name=name,
+                description=description,
+                type="Ride",
+                start_at=datetime(2026, 6, 1, tzinfo=UTC),
+                start_at_local=datetime(2026, 6, 1),
+                has_photos=photos,
+            )
+            .returning(activity.c.id)
+        ).scalar_one()
+        if start:
+            lat, lng = start
+            conn.execute(
+                text(
+                    "INSERT INTO activity_track (activity_id, geometry, track_source) VALUES "
+                    "(:a, ST_GeomFromText(:w, 4326), 'streams')"
+                ),
+                {
+                    "a": activity_id,
+                    "w": f"MULTILINESTRING(({lng} {lat}, {lng + 0.05} {lat + 0.05}))",
+                },
+            )
+    return conn
+
+
+@pytest.mark.parametrize(
+    "q, expected",
+    [
+        ("galibier", {11}),
+        ("GALIB", {11}),
+        ("lautaret", {11}),
+        ("valencia", {12}),
+        ("xativa", {12}),
+        ("cafe sete", {13}),
+        ("evasion", {14}),
+        ("galibeir", {11}),
+        ("vélo", set()),
+    ],
+)
+def test_text_search_is_accent_insensitive_prefix_and_fuzzy(searchable, q, expected):
+    assert matching(searchable, [("q", q)]) == expected
+
+
+def test_photos_flag(searchable):
+    assert matching(searchable, [("photos", "1")]) == {11, 13}
+    assert matching(searchable, [("photos", "0")]) == {12, 14}
+
+
+def test_bbox_and_area_match_tracks(searchable):
+    from velotheque.geo import encode_polyline
+
+    assert matching(searchable, [("bbox", "6.0,44.9,6.6,45.2")]) == {11}
+    assert matching(searchable, [("bbox", "-1,39,4,44")]) == {12, 13}
+    triangle = encode_polyline([(43.0, 3.0), (44.0, 3.5), (43.0, 4.5)])
+    assert matching(searchable, [("area", triangle)]) == {13}
+    bowtie = encode_polyline([(43.0, 3.0), (44.0, 4.5), (44.0, 3.0), (43.0, 4.5)])
+    assert matching(searchable, [("area", bowtie)]) == {13}
+
+
+def test_bad_geometry_params_are_ignored():
+    state = FilterState.from_items(
+        [("bbox", "1,2,3"), ("bbox", "10,0,5,1"), ("area", "!!"), ("area", "_p~iF~ps|U")]
+    )
+    assert state.values == {} and set(state.errors) == {"bbox", "area"}
+
+
+def test_facet_counts_exclude_their_own_field(rides):
+    from velotheque.filters import facet_counts
+
+    conn, bikes = rides
+    state = FilterState.from_items([("type", "Ride"), ("dist_min", "30")])
+    types = facet_counts(conn, state, Entity.RIDES, activity, "type")
+    assert types == {"Ride": 1, "GravelRide": 1, "VirtualRide": 1, "MountainBikeRide": 1}
+    by_bike = facet_counts(conn, state, Entity.RIDES, activity, "bike")
+    assert by_bike == {bikes["road"]: 1}

@@ -77,3 +77,62 @@ def test_sync_widget_reports_latest_job(client):
     widget = client.get("/jobs/latest").text
     assert "Sync now" in widget and "Synced" in widget
     assert json.loads(client.get("/explore/rides.geojson").text)["type"] == "FeatureCollection"
+
+
+def test_partial_carries_facets_out_of_band(client):
+    partial = client.get(
+        "/?type=GravelRide", headers={"HX-Request": "true", "HX-Target": "results"}
+    ).text
+    assert 'id="facets" hx-swap-oob="true"' in partial
+    assert 'id="area-filter" class="area-filter" hx-swap-oob="true"' in partial
+    facets = partial[partial.index('id="facets"') :]
+    assert 'value="Ride" form="filters" > Ride <span class="count">1</span>' in facets
+    assert 'value="GravelRide" form="filters" checked> GravelRide <span class="count">1' in facets
+
+
+def test_search_filters_results_and_map(client):
+    page = client.get("/?q=galibier").text
+    assert "Col du Galibier" in page and "Ride 2" not in page
+    assert len(client.get("/explore/rides.geojson?q=GALIB").json()["features"]) == 1
+
+
+def test_saved_views_round_trip(client):
+    saved = client.post("/views", data={"name": "Gravel", "query_string": "?type=GravelRide"})
+    assert "Saved “Gravel”" in saved.text and 'href="/?type=GravelRide"' in saved.text
+    client.post("/views", data={"name": "Gravel", "query_string": "?type=Ride"})
+    page = client.get("/").text
+    assert page.count('href="/?type=Ride">Gravel</a>') == 1
+    view_id = page.split('hx-delete="/views/')[1].split('"')[0]
+    assert "Gravel" not in client.delete(f"/views/{view_id}").text.split("</ul>")[0]
+
+
+def test_photos_are_served_and_shown(client, db, tmp_path, monkeypatch):
+    from tests.fake_strava import jpeg_bytes
+    from velotheque.photos import materialize_photos
+
+    settings = SETTINGS.model_copy(update={"data_dir": tmp_path})
+    photo = tmp_path / "photos" / "1" / "abc.jpg"
+    photo.parent.mkdir(parents=True)
+    photo.write_bytes(jpeg_bytes())
+    with db.begin() as conn:
+        ride_id = conn.execute(select(activity.c.id).where(activity.c.source_id == 1)).scalar()
+        conn.exec_driver_sql(
+            "INSERT INTO raw_export_activity (source_id, export_name, payload, payload_sha256) "
+            "VALUES (1, 'e', '{\"Media\": \"||media/abc.jpg\"}', '\\x00')"
+        )
+        assert materialize_photos(conn, ride_id, 1, settings) == 1
+    page = client.get(f"/rides/{ride_id}").text
+    assert 'src="/photos/1/thumbs/abc.jpg"' in page and 'id="lightbox"' in page
+
+    from starlette.staticfiles import StaticFiles
+
+    from velotheque.web.app import app
+
+    mount = next(r for r in app.routes if getattr(r, "name", "") == "photos")
+    monkeypatch.setattr(mount, "app", StaticFiles(directory=tmp_path / "photos"))
+    response = client.get("/photos/1/abc.jpg")
+    assert response.status_code == 200 and response.headers["content-type"] == "image/jpeg"
+
+
+def test_settings_lists_export_status(client):
+    assert "No export imported yet" in client.get("/settings").text

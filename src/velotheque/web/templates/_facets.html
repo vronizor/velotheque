@@ -1,0 +1,27 @@
+<div id="facets" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <fieldset>
+    <legend>Type</legend>
+    {% for t in types %}
+      {% set n = facets.type.get(t, 0) %}
+      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="type" value="{{ t }}" form="filters" {% if state.has('type', t) %}checked{% endif %}> {{ t }} <span class="count">{{ n }}</span></label>
+    {% else %}
+      <p class="muted">No rides yet</p>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Bike</legend>
+    {% for b in bikes %}
+      {% set n = facets.bike.get(b.id, 0) %}
+      <label class="check{% if b.retired %} retired{% endif %}{% if not n %} zero{% endif %}"><input type="checkbox" name="bike" value="{{ b.id }}" form="filters" {% if state.has('bike', b.id|string) %}checked{% endif %}> {{ b.name }} <span class="count">{{ n }}</span></label>
+    {% endfor %}
+    {% set n = facets.bike.get(None, 0) %}
+    <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="bike" value="none" form="filters" {% if state.has('bike', 'none') %}checked{% endif %}> <em>No bike</em> <span class="count">{{ n }}</span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Photos</legend>
+    {% set n = facets.photos.get(True, 0) %}
+    <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="photos" value="1" form="filters" {% if state.get('photos') is sameas true %}checked{% endif %}> With photos <span class="count">{{ n }}</span></label>
+  </fieldset>
+</div>

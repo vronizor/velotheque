@@ -1,9 +1,16 @@
 from dataclasses import dataclass
 
-from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column, select
+from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column, select, text
 
-from velotheque.filters import Entity, FilterState, build_where
-from velotheque.tables import activity, activity_track_simplified, bike
+from velotheque.exportrow import gear_id, sport_type
+from velotheque.filters import Entity, FilterState, build_where, facet_counts
+from velotheque.tables import (
+    activity,
+    activity_photo,
+    activity_track_simplified,
+    bike,
+    saved_view,
+)
 
 SORTS = {
     "date": activity.c.start_at_local,
@@ -141,3 +148,68 @@ def ride_track_geojson(conn: Connection, activity_id: int) -> str | None:
             s.c.activity_id == activity_id, s.c.level == "detail"
         )
     ).scalar()
+
+
+FACETS = ("type", "bike", "photos")
+
+
+def ride_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
+    return {p: facet_counts(conn, state, Entity.RIDES, activity, p) for p in FACETS}
+
+
+def ride_photos(conn: Connection, activity_id: int):
+    return conn.execute(
+        select(activity_photo)
+        .where(activity_photo.c.activity_id == activity_id)
+        .order_by(activity_photo.c.position)
+    ).all()
+
+
+def saved_views(conn: Connection, entity: str = "rides"):
+    return conn.execute(
+        select(saved_view).where(saved_view.c.entity == entity).order_by(saved_view.c.name)
+    ).all()
+
+
+LATEST_EXPORT_ROWS = text(
+    """
+    SELECT DISTINCT ON (source_id) source_id, export_name, payload, fetched_at
+    FROM raw_export_activity
+    ORDER BY source_id, id DESC
+    """
+)
+
+
+def export_status(conn: Connection, sport_types) -> dict:
+    rows = conn.execute(LATEST_EXPORT_ROWS).all()
+    if not rows:
+        return {"rows": 0}
+    unmatched = []
+    for row in rows:
+        payload = row.payload
+        if sport_type(payload.get("Activity Type")) not in sport_types:
+            continue
+        if payload.get("Activity Gear") and not gear_id(payload):
+            unmatched.append(row)
+    ids = [r.source_id for r in unmatched]
+    by_source = dict(
+        conn.execute(
+            select(activity.c.source_id, activity.c.id).where(activity.c.source_id.in_(ids))
+        ).all()
+    )
+    return {
+        "rows": len(rows),
+        "exports": sorted({r.export_name for r in rows}),
+        "last_import": max(r.fetched_at for r in rows),
+        "photos": conn.execute(select(func.count()).select_from(activity_photo)).scalar(),
+        "unmatched": [
+            {
+                "source_id": r.source_id,
+                "activity_id": by_source.get(r.source_id),
+                "name": r.payload.get("Activity Name"),
+                "gear": r.payload.get("Activity Gear"),
+                "date": r.payload.get("Activity Date"),
+            }
+            for r in unmatched
+        ],
+    }

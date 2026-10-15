@@ -1,3 +1,4 @@
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs
@@ -40,6 +41,14 @@ def summary(activity_id: int, day: int = 0, **overrides) -> dict:
     }
     payload.update(overrides)
     return payload
+
+
+def jpeg_bytes(size=(800, 600)) -> bytes:
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", size, (214, 58, 42)).save(buffer, "JPEG")
+    return buffer.getvalue()
 
 
 def streams_for(n: int = 50, gap_at: int | None = None) -> dict:
@@ -91,6 +100,8 @@ class FakeStrava:
     def handle(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         self.calls.append(path)
+        if request.url.host == "cdn.test":
+            return httpx.Response(200, content=jpeg_bytes())
         if path.endswith("/oauth/token"):
             self.tokens_issued += 1
             form = parse_qs(request.content.decode())

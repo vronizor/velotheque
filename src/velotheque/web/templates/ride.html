@@ -37,6 +37,30 @@
     <section class="description">{{ ride.description }}</section>
   {% endif %}
 
+  {% if photos %}
+    <section class="gallery" aria-label="Photos">
+      <h2>Photos <span class="muted">{{ photos|length }}</span></h2>
+      <div class="gallery-grid">
+        {% for p in photos %}
+          {% if p.kind == "video" %}
+            <video class="tile" src="/{{ p.file_path }}" controls preload="metadata"></video>
+          {% else %}
+            <a class="tile" href="/{{ p.file_path }}" data-lightbox="{{ loop.index0 }}">
+              <img src="/{{ p.thumb_path or p.file_path }}" alt="Photo {{ loop.index }} of {{ ride.name }}" loading="lazy">
+            </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if ride.has_photos and photos|selectattr("source", "equalto", "strava")|list and not photos|selectattr("source", "equalto", "export")|list %}
+        <p class="muted small">Only the primary photo is available through Strava's API. Import a newer bulk export to get the rest.</p>
+      {% endif %}
+    </section>
+    <dialog id="lightbox" class="lightbox">
+      <img alt="">
+      <form method="dialog"><button aria-label="Close">×</button></form>
+    </dialog>
+  {% endif %}
+
   <p class="muted small">Last synced {{ ride.synced_at | when }} UTC · Strava activity {{ ride.source_id }}</p>
 </main>
 {% endblock %}
