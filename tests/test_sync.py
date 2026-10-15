@@ -189,5 +189,5 @@ def test_rebuild_derived_and_normalize_all_are_repeatable(db, strava):
         with db.begin() as conn:
             rebuild_derived(conn)
         with db.begin() as conn:
-            derive_activities(conn, normalize_all(conn, SETTINGS.sport_types))
+            derive_activities(conn, normalize_all(conn, SETTINGS))
         assert _snapshot(db) == before

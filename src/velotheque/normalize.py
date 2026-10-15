@@ -1,21 +1,27 @@
-import math
+import logging
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 
-from sqlalchemy import Connection, delete, select, text
+from sqlalchemy import Connection, delete, select, text, union
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
+from velotheque.config import Settings
+from velotheque.exportrow import as_api_payload
+from velotheque.geo import multilinestring_wkt, split_segments
 from velotheque.tables import (
     activity,
     activity_track,
     bike,
+    raw_export_activity,
     raw_strava_activity,
     raw_strava_athlete,
     raw_strava_gear,
     raw_strava_streams,
 )
+from velotheque.trackfiles import parse_track_file
 
-MAX_GAP_M = 500.0
+log = logging.getLogger(__name__)
 _TZ_NAME = re.compile(r"\)\s*(\S+)\s*$")
 
 
@@ -32,35 +38,6 @@ def parse_utc(value: str) -> datetime:
 
 def parse_local(value: str) -> datetime:
     return datetime.fromisoformat(value.removesuffix("Z")).replace(tzinfo=None)
-
-
-def haversine_m(a, b) -> float:
-    lat1, lon1, lat2, lon2 = map(math.radians, (a[0], a[1], b[0], b[1]))
-    h = (
-        math.sin((lat2 - lat1) / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
-    )
-    return 2 * 6_371_008.8 * math.asin(math.sqrt(h))
-
-
-def split_segments(latlng: list, max_gap_m: float = MAX_GAP_M) -> list[list]:
-    segments, current = [], []
-    for point in latlng:
-        if not point or len(point) < 2:
-            continue
-        if current and haversine_m(current[-1], point) > max_gap_m:
-            segments.append(current)
-            current = []
-        current.append(point)
-    segments.append(current)
-    return [s for s in segments if len(s) >= 2]
-
-
-def multilinestring_wkt(segments: list[list]) -> str:
-    parts = ", ".join(
-        "(" + ", ".join(f"{lng} {lat}" for lat, lng in segment) + ")" for segment in segments
-    )
-    return f"MULTILINESTRING({parts})"
 
 
 def _latest(conn: Connection, table, **key):
@@ -96,14 +73,16 @@ def normalize_bikes(conn: Connection) -> None:
         _upsert_bike(conn, gear["id"], _gear_name(gear), gear.get("retired"))
 
 
-def _bike_id(conn: Connection, gear_id: str | None) -> int | None:
+def _bike_id(conn: Connection, gear_id: str | None, name_hint: str | None = None) -> int | None:
     if not gear_id:
-        return None
+        if not name_hint:
+            return None
+        return conn.execute(select(bike.c.id).where(bike.c.name == name_hint).limit(1)).scalar()
     existing = conn.execute(select(bike.c.id).where(bike.c.strava_gear_id == gear_id)).scalar()
     if existing is not None:
         return existing
     return conn.execute(
-        insert(bike).values(strava_gear_id=gear_id, name=gear_id).returning(bike.c.id)
+        insert(bike).values(strava_gear_id=gear_id, name=name_hint or gear_id).returning(bike.c.id)
     ).scalar_one()
 
 
@@ -117,22 +96,38 @@ def merged_payload(summary, detail) -> dict | None:
     return {**detail.payload, **summary.payload}
 
 
-def normalize_activity(conn: Connection, source_id: int, sport_types) -> int | None:
+def _latest_export(conn: Connection, source_id: int):
+    return conn.execute(
+        select(raw_export_activity.c.payload, raw_export_activity.c.file_path)
+        .where(raw_export_activity.c.source_id == source_id)
+        .order_by(raw_export_activity.c.id.desc())
+        .limit(1)
+    ).first()
+
+
+def normalize_activity(
+    conn: Connection, source_id: int, settings: Settings, force_track: bool = False
+) -> int | None:
+    """API data wins for metadata; the bulk export fills in when the API has nothing."""
     summary = _latest(conn, raw_strava_activity, source_id=source_id, kind="summary")
     detail = _latest(conn, raw_strava_activity, source_id=source_id, kind="detail")
-    payload = merged_payload(summary, detail)
-    if payload is None:
+    export = _latest_export(conn, source_id)
+    exported = as_api_payload(export.payload) if export else {}
+    payload = merged_payload(summary, detail) or exported
+    if not payload:
         return None
     sport = payload.get("sport_type") or payload.get("type")
-    if sport not in sport_types:
+    if sport not in settings.sport_types:
         conn.execute(
             delete(activity).where(activity.c.source == "strava", activity.c.source_id == source_id)
         )
         return None
 
+    description = detail.payload.get("description") if detail else exported.get("description")
+    photos = max(payload.get("total_photo_count") or 0, exported.get("total_photo_count") or 0)
     values = {
         "name": payload.get("name") or "",
-        "description": detail.payload.get("description") if detail else None,
+        "description": description or None,
         "type": sport,
         "start_at": parse_utc(payload["start_date"]),
         "start_at_local": parse_local(payload["start_date_local"]),
@@ -141,9 +136,9 @@ def normalize_activity(conn: Connection, source_id: int, sport_types) -> int | N
         "moving_time_s": payload.get("moving_time") or 0,
         "elapsed_time_s": payload.get("elapsed_time") or 0,
         "elevation_gain_m": payload.get("total_elevation_gain") or 0,
-        "bike_id": _bike_id(conn, payload.get("gear_id")),
+        "bike_id": _bike_id(conn, payload.get("gear_id"), exported.get("gear_name")),
         "trainer": bool(payload.get("trainer")),
-        "has_photos": (payload.get("total_photo_count") or 0) > 0,
+        "has_photos": photos > 0,
         "synced_at": datetime.now(UTC),
     }
     stmt = insert(activity).values(source="strava", source_id=source_id, **values)
@@ -152,7 +147,8 @@ def normalize_activity(conn: Connection, source_id: int, sport_types) -> int | N
             constraint="uq_activity_source_source_id", set_=values
         ).returning(activity.c.id)
     ).scalar_one()
-    _normalize_track(conn, activity_id, source_id, payload)
+    export_file = settings.data_dir / export.file_path if export and export.file_path else None
+    _normalize_track(conn, activity_id, source_id, payload, export_file, force_track)
     return activity_id
 
 
@@ -183,30 +179,63 @@ def _upsert_track(conn: Connection, activity_id: int, geometry_sql: str, params:
     )
 
 
-def _streams_track(conn: Connection, activity_id: int, streams: dict) -> bool:
-    latlng = (streams.get("latlng") or {}).get("data") or []
-    segments = split_segments(latlng)
+def _full_track(conn: Connection, activity_id: int, latlng, track_source: str, **arrays) -> bool:
+    segments = split_segments(latlng or [])
     if not segments:
         return False
-
-    def data(key):
-        return (streams.get(key) or {}).get("data")
-
     _upsert_track(
         conn,
         activity_id,
         "ST_GeomFromText(:wkt, 4326)",
         {"wkt": multilinestring_wkt(segments)},
-        track_source="streams",
+        track_source=track_source,
+        **arrays,
+    )
+    return True
+
+
+def _streams_track(conn: Connection, activity_id: int, streams: dict) -> bool:
+    def data(key):
+        return (streams.get(key) or {}).get("data")
+
+    return _full_track(
+        conn,
+        activity_id,
+        data("latlng"),
+        "streams",
         time_s=data("time"),
         distance_m=data("distance"),
         altitude_m=data("altitude"),
         moving=data("moving"),
     )
-    return True
 
 
-def _normalize_track(conn: Connection, activity_id: int, source_id: int, payload: dict) -> None:
+def _export_track(conn: Connection, activity_id: int, path: Path) -> bool:
+    try:
+        track = parse_track_file(path)
+    except Exception:
+        log.warning("could not parse export track %s", path, exc_info=True)
+        return False
+    return _full_track(
+        conn,
+        activity_id,
+        track.latlng,
+        "export",
+        time_s=track.time_s(),
+        distance_m=track.distances(),
+        altitude_m=track.altitudes(),
+    )
+
+
+def _normalize_track(
+    conn: Connection,
+    activity_id: int,
+    source_id: int,
+    payload: dict,
+    export_file: Path | None,
+    force: bool,
+) -> None:
+    """Track priority: API streams, then the export's track file, then Strava's polyline."""
     streams = conn.execute(
         select(raw_strava_streams.c.http_status, raw_strava_streams.c.payload)
         .where(raw_strava_streams.c.source_id == source_id)
@@ -224,6 +253,11 @@ def _normalize_track(conn: Connection, activity_id: int, source_id: int, payload
     current = conn.execute(
         select(activity_track.c.track_source).where(activity_track.c.activity_id == activity_id)
     ).scalar()
+    if export_file is not None:
+        if current == "export" and not force:
+            return
+        if export_file.exists() and _export_track(conn, activity_id, export_file):
+            return
     if current in ("streams", "export"):
         return
 
@@ -241,8 +275,14 @@ def _normalize_track(conn: Connection, activity_id: int, source_id: int, payload
         conn.execute(delete(activity_track).where(activity_track.c.activity_id == activity_id))
 
 
-def normalize_all(conn: Connection, sport_types) -> list[int]:
+def normalize_all(conn: Connection, settings: Settings, force_track: bool = False) -> list[int]:
     normalize_bikes(conn)
-    source_ids = conn.execute(select(raw_strava_activity.c.source_id).distinct()).scalars().all()
-    ids = [normalize_activity(conn, sid, sport_types) for sid in source_ids]
+    source_ids = (
+        conn.execute(
+            union(select(raw_strava_activity.c.source_id), select(raw_export_activity.c.source_id))
+        )
+        .scalars()
+        .all()
+    )
+    ids = [normalize_activity(conn, sid, settings, force_track) for sid in source_ids]
     return [i for i in ids if i is not None]

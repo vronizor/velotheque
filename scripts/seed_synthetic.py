@@ -19,7 +19,7 @@ from sqlalchemy.engine import make_url
 from velotheque.cli import alembic_config
 from velotheque.config import get_settings
 from velotheque.derive import rebuild_derived
-from velotheque.normalize import multilinestring_wkt
+from velotheque.geo import multilinestring_wkt
 from velotheque.tables import activity
 
 CENTERS = [(48.85, 2.35), (39.47, -0.38), (46.20, 6.15), (45.19, 5.72), (41.39, 2.17)]

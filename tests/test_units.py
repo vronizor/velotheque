@@ -2,7 +2,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from velotheque.normalize import parse_local, parse_timezone, split_segments
+from velotheque.geo import split_segments
+from velotheque.normalize import parse_local, parse_timezone
 from velotheque.strava.ratelimit import RateBudget, RateLimited
 
 

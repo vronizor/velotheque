@@ -22,9 +22,18 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] PostGIS arm64: `postgresql-18-postgis-3` 3.6.x in PGDG bookworm-pgdg
 - [x] 2026 Strava API changes: nothing blocking. API base URL is configurable, Bearer header always sent.
 
+## M2 (pulled forward): bulk export import
+- [x] `velotheque import-export <zip>`: raw_export_activity (migration 0002), track files copied to DATA_DIR/strava-export/<export>/
+- [x] Track parsers: FIT (incl. byte-typed big-endian fields fitdecode can't decode), GPX, TCX; gz or plain
+- [x] Gear via the CSV `Bike` column → `b<id>` (exact); unmatched cycling gear listed by the CLI
+- [x] Normalize merge: API wins for metadata; tracks streams > export > polyline; sync skips detail/streams for export-covered rides
+- [x] Real export imported locally: 390 rides, 341 tracks (4 Rides + 45 Virtual Rides have no GPS), 7 bikes, 18,958 km; map 0.84 MB gz / 0.12 s
+- [ ] Photos: copy media/ to DATA_DIR/photos/{activity_id}/, thumbnails, gallery (649 files incl. mp4)
+- [ ] Unmatched-gear list in the UI (currently CLI output only)
+
 ## M2 notes (gathered early)
 - Bulk export at `data/imports/` (gitignored): ~663 activity files, 642 media, 78 routes
-- `activities.csv` VERIFY: columns include `Activity ID, Activity Date, Activity Name, Activity Type, Activity Description, Elapsed Time, Distance, …, Activity Gear, Filename, …` and **duplicate headers** (`Elapsed Time`, `Distance` appear twice: summary vs detailed units) → polars must read with deduplicated names. Media column still to locate.
+- [x] `activities.csv` VERIFY: 103 columns. Activity Date is UTC (checked against FIT timestamps). `Bike` = Strava gear id. `Filename` = activities/<upload id>.{fit.gz,gpx,tcx.gz,fit}. `Media` = `||media/a.jpg|media/b.mp4`. Columns include `Activity ID, Activity Date, Activity Name, Activity Type, Activity Description, Elapsed Time, Distance, …, Activity Gear, Filename, …` and **duplicate headers** (`Elapsed Time`, `Distance` appear twice: summary vs detailed units) → polars must read with deduplicated names.
 - ~660 activities → full API backfill ≈ 1,300 read calls ≈ 1–2 days at 1,000/day
 
 ## M1 — Skeleton + sync
@@ -46,9 +55,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] ratelimit.py: header parsing, budget guard
 - [x] OAuth routes: /strava/connect, /strava/callback (state cookie, scope check)
 - [x] Settings page: connection status + Connect button
-- [ ] Verify: real Connect works end to end (needs STRAVA_CLIENT_SECRET)
+- [ ] Verify: real Connect works end to end (secret is set; waiting for the owner to click Connect on http://localhost:8000/settings)
 - [ ] Deploy to Pi: clone, .env, compose up, Caddy site block
-- [ ] First real sync on the Pi (not on the Mac, to keep the daily read budget)
+- [ ] First real sync: fine on the local Docker stack now that the export covers the backfill (only ~5 API calls expected)
 
 ### 3. Sync
 - [x] Athlete + gear fetch → raw
@@ -84,4 +93,4 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Tests: filter builder, sync (MockTransport), normalize, rebuild-derived idempotency, rate limiter (32 passing)
 - [~] scripts/seed_synthetic.py ✔; Mac: 5k rides → 3.7 MB gz / 0.58 s unfiltered, <0.15 s filtered. Pi measurement pending.
 - [x] ruff check + format clean
-- [ ] Push to remote
+- [x] Push to remote (github.com/vronizor/velotheque, public: keep personal hostnames/IPs out of tracked files)

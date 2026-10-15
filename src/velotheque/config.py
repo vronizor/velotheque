@@ -1,5 +1,7 @@
 from functools import lru_cache
+from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CYCLING_SPORT_TYPES = (
@@ -18,6 +20,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://velotheque:velotheque@localhost:5432/velotheque"
+
+    data_dir: Path = Field(
+        Path("/data"), validation_alias=AliasChoices("DATA_DIR", "VELOTHEQUE_DATA_DIR")
+    )
 
     base_url: str = "http://localhost:8000"
     oauth_base_url: str | None = None

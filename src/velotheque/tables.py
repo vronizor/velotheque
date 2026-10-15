@@ -91,6 +91,19 @@ raw_strava_gear = Table(
     Index(None, "source_id", "id"),
 )
 
+raw_export_activity = Table(
+    "raw_export_activity",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("source_id", BigInteger, nullable=False),
+    Column("export_name", Text, nullable=False),
+    Column("file_path", Text),
+    Column("payload", JSONB, nullable=False),
+    Column("payload_sha256", LargeBinary, nullable=False),
+    _now(),
+    Index(None, "source_id", "id"),
+)
+
 # Operational
 
 strava_auth = Table(

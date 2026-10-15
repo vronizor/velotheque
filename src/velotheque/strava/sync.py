@@ -53,11 +53,16 @@ PENDING = text(
     ), state AS (
         SELECT s.source_id,
                s.payload->>'start_date' AS start_date,
-               d.id IS NULL AS no_detail,
+               d.id IS NULL AND NOT EXISTS (
+                   SELECT 1 FROM raw_export_activity e WHERE e.source_id = s.source_id
+               ) AS no_detail,
                d.id IS NOT NULL
                    AND {_signature("s")} IS DISTINCT FROM {_signature("prev")} AS changed,
                NOT EXISTS (
                    SELECT 1 FROM raw_strava_streams st WHERE st.source_id = s.source_id
+               ) AND NOT EXISTS (
+                   SELECT 1 FROM raw_export_activity e
+                   WHERE e.source_id = s.source_id AND e.file_path IS NOT NULL
                ) AS no_streams
         FROM latest_summary s
         LEFT JOIN latest_detail d USING (source_id)
@@ -137,7 +142,7 @@ def list_after(conn: Connection, overlap_days: int) -> int:
 
 def _ingest(engine: Engine, settings: Settings, source_id: int) -> None:
     with engine.begin() as conn:
-        activity_id = normalize_activity(conn, source_id, settings.sport_types)
+        activity_id = normalize_activity(conn, source_id, settings)
         if activity_id is not None:
             derive_activities(conn, [activity_id])
 

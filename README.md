@@ -87,13 +87,36 @@ The access token shown on Strava's API page only has `read` scope, so it isn't u
 - **Fixing a wrong title or bike:** edit it on Strava, then click **Refresh from Strava** on the ride page.
 - **Rides that are left out:** only cycling sport types are normalized. Other activities are kept in the raw tables.
 
+## Importing the Strava bulk export
+
+The export fills in your history without spending Strava API calls. Request it on strava.com under Settings → My Account → Download or Delete Your Account. Then:
+
+```sh
+cp export_XXXX.zip "$VELOTHEQUE_DATA_DIR/imports/"
+docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
+```
+
+What the import does:
+- Stores each `activities.csv` row raw (append-only, keyed by activity ID) and copies the track files to `$VELOTHEQUE_DATA_DIR/strava-export/<export>/`.
+- Normalizes the cycling rows and builds their tracks from the `.fit` / `.gpx` / `.tcx` files, gzipped or not.
+- Maps bikes exactly, through the CSV's `Bike` column (the Strava gear ID). Cycling rides whose gear can't be mapped are listed at the end of the run.
+- Can be re-run safely: unchanged rows are skipped.
+
+How it combines with the API:
+- **Metadata:** when both sources exist, the API wins (name, type, time zone, bike). Export-only rides show UTC times until a sync supplies their real time zone.
+- **Tracks:** the priority is API streams, then the export's track file, then Strava's coarse polyline.
+- **API budget:** a sync skips the detail and streams calls for rides the export already covers, so after an import a sync only costs a handful of API calls.
+
+Photos from the export (`media/`) aren't imported yet. That's planned for Milestone 2.
+
 ## CLI
 
 ```sh
 docker compose exec app velotheque migrate           # apply migrations (also done at startup)
 docker compose exec app velotheque sync              # same as the Sync now button
 docker compose exec app velotheque sync --activity 1234567890
-docker compose exec app velotheque normalize         # rebuild normalized tables from raw
+docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
+docker compose exec app velotheque normalize         # rebuild normalized tables from raw (--force-tracks re-parses export files)
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables
 ```
 

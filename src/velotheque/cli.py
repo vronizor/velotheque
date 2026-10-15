@@ -49,9 +49,27 @@ def cmd_normalize(args) -> None:
     from velotheque.normalize import normalize_all
 
     with get_engine().begin() as conn:
-        ids = normalize_all(conn, get_settings().sport_types)
+        ids = normalize_all(conn, get_settings(), force_track=args.force_tracks)
         derive_activities(conn, ids)
     print(f"normalized {len(ids)} activities")
+
+
+def cmd_import_export(args) -> None:
+    from velotheque.config import get_settings
+    from velotheque.db import get_engine
+    from velotheque.export import import_export
+
+    report = import_export(get_engine(), get_settings(), Path(args.zip), progress=print)
+    print(
+        f"{report.rows} activities in the export, {report.cycling} rides normalized "
+        f"({report.normalized} ok), {report.files} track files"
+    )
+    if report.missing_files:
+        print(f"track file missing from the zip for: {report.missing_files}")
+    if report.unmatched_gear:
+        print("rides whose gear could not be matched to a Strava bike (review manually):")
+        for source_id, name, gear in report.unmatched_gear:
+            print(f"  {source_id}  {name}  [{gear}]")
 
 
 def cmd_rebuild_derived(args) -> None:
@@ -71,9 +89,14 @@ def main(argv: list[str] | None = None) -> None:
     sync = sub.add_parser("sync", help="sync from Strava (same as the Sync now button)")
     sync.add_argument("--activity", type=int, help="refresh a single Strava activity id")
     sync.set_defaults(func=cmd_sync)
-    sub.add_parser("normalize", help="re-normalize every activity from raw data").set_defaults(
-        func=cmd_normalize
+    normalize = sub.add_parser("normalize", help="re-normalize every activity from raw data")
+    normalize.add_argument(
+        "--force-tracks", action="store_true", help="re-parse export track files too"
     )
+    normalize.set_defaults(func=cmd_normalize)
+    export = sub.add_parser("import-export", help="import a Strava bulk export zip")
+    export.add_argument("zip", help="path to export_XXXX.zip")
+    export.set_defaults(func=cmd_import_export)
     sub.add_parser("rebuild-derived", help="drop and rebuild derived tables").set_defaults(
         func=cmd_rebuild_derived
     )

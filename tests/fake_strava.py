@@ -135,9 +135,9 @@ def _epoch(value: str) -> int:
     return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
 
 
-def sync(db, fake, kind="sync", source_id=None):
-    client = StravaClient(db, SETTINGS, http=httpx.Client(transport=fake.transport()))
+def sync(db, fake, kind="sync", source_id=None, settings=SETTINGS):
+    client = StravaClient(db, settings, http=httpx.Client(transport=fake.transport()))
     job_id = start_job(db, kind, source_id)
-    run_job(db, SETTINGS, client, job_id)
+    run_job(db, settings, client, job_id)
     with db.connect() as conn:
         return conn.execute(select(sync_job).where(sync_job.c.id == job_id)).one()
