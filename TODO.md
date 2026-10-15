@@ -21,7 +21,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## M3 — Backup to Proton Drive
 - [x] VERIFY proton-drive CLI v0.9.0 (Mac binary + docs): linux/arm64 glibc build exists; `filesystem delete` + `trash` exist → prune by name; headless = `auth login` URL opened elsewhere + PROTON_DRIVE_CREDENTIALS_STORE (keychain | pass | unsafe_file); upload strategies replace/skip/rename/create-new-revision, folders merge. Per-command --help broken in 0.9.0; list --json shape + exit codes undocumented
-- [ ] VERIFY live: `filesystem list --json` shape, upload/trash behaviour, against a throwaway Drive folder (needs the owner to log in on the Mac)
+- [x] VERIFY live (Mac, throwaway folder, since deleted): list --json = array of nodes with name {"ok", "value"} (first parser guess was wrong → fixed + test); errors exit 1 with stderr; folder merge creates the remote tree; unchanged re-upload skipped (22 s → 4.5 s); delete works only from /trash (pruning trashes); version pin refusal; restore --latest-from-drive OK in 13 s with matching counts
 - [x] Migration 0004: backup_status (+ app reads it)
 - [x] `velotheque backup-status` CLI the host script calls to record success/failure
 - [x] ops/dump-db.sh (root, Docker only) + ops/proton_backup.py (backup user): dump → Velotheque/db/<UTC>.dump; retention 14 daily + 8 weekly (trash)
@@ -31,7 +31,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Header backup indicator (red if last success > 48 h); Settings backup section
 - [x] Tests: retention selection, manifest diff, status recording, indicator
 - [x] Local dry run: 49 MB dump → scratch DB in ~5 s, row counts match; record-status success/failure paths → indicator
-- [ ] README + push
+- [x] README + push
+
+## M5 notes (gathered early)
+- GPX library lives on Proton Drive at `/my-files/gpx-library`: 16 .gpx + 15 .geojson twins + 6 subfolders (multi-stage events?). Decide: GPX only, or GeoJSON too? Pull it with proton-drive for testing when M5 starts.
 
 ## M2 (pulled forward): bulk export import
 - [x] `velotheque import-export <zip>`: raw_export_activity (migration 0002), track files copied to DATA_DIR/strava-export/<export>/

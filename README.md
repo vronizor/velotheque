@@ -153,7 +153,13 @@ The Proton-specific code is all in `ops/proton_backup.py` (Python standard libra
   - `pass`: GPG-encrypted, the documented headless option
   - `unsafe_file`: plain JSON, which Proton calls testing only
 - **Version pin:** the CLI is pre-1.0, so the backup refuses to run unless `proton-drive --version` matches `PROTON_DRIVE_VERSION`.
-- **Not verified:** per-command `--help` doesn't work in 0.9.0, and exit codes and the `--json` listing format aren't documented. The script treats any non-zero exit as a failure, and parses listings tolerantly.
+- **Checked live against a throwaway Drive folder** (all undocumented):
+  - `filesystem list --json` returns an array of nodes whose `name` is an object, `{"ok": true, "value": "…"}`.
+  - Errors exit with code 1 and a message on stderr, such as `You need to login first`.
+  - Uploading a folder with `--folder-conflict-strategy merge` creates any missing remote folders in one call.
+  - Re-uploading unchanged files is skipped, so the second run took 4.5 s against 22 s for the first.
+  - `filesystem delete` only works on items already in the trash. Pruning therefore only trashes, and Proton (or you) empties the trash.
+  - Per-command `--help` doesn't work in 0.9.0.
 
 ### Setup on the Pi (once)
 
@@ -212,7 +218,10 @@ sudo rsync -a /tmp/photos-restore/photos/ "$VELOTHEQUE_DATA_DIR/photos/"
 docker compose exec app velotheque normalize
 ```
 
-Tested on the Mac: a 49 MB dump of the real data restored into a scratch database in about 5 s, with row counts matching the live database.
+Tested on the Mac with the real CLI and a throwaway Drive folder:
+- the full nightly run took 22 s (a 51 MB dump and 2 photos)
+- pruning with tight retention trashed exactly the expected dumps
+- `restore.sh --latest-from-drive` downloaded and restored the dump in 13 s, with row counts matching the live database
 
 ## CLI
 

@@ -126,8 +126,14 @@ def parse_listing(output: str) -> list[str]:
             for item in node:
                 walk(item)
         elif isinstance(node, dict):
-            if isinstance(node.get("name"), str):
-                names.append(node["name"])
+            name = node.get("name")
+            # proton-drive 0.9.0: {"name": {"ok": true, "value": "file.dump"}, "type": "file", …}
+            if isinstance(name, dict) and "value" in name:
+                if name.get("ok", True) and isinstance(name["value"], str):
+                    names.append(name["value"])
+                return
+            if isinstance(name, str):
+                names.append(name)
                 return
             for key in ("items", "children", "nodes", "files", "entries", "result", "data"):
                 if key in node:
@@ -310,5 +316,19 @@ def main() -> int:
     return status
 
 
+def latest_remote_dump() -> int:
+    """Used by ops/restore.sh --latest-from-drive: print the newest remote dump's name."""
+    config = Config.from_env()
+    names = Drive(config.proton_bin).list_names(f"{config.remote_root}/db")
+    dated = sorted((dump_date(n), n) for n in names if dump_date(n))
+    if not dated:
+        print(f"no dumps in {config.remote_root}/db", file=sys.stderr)
+        return 1
+    print(dated[-1][1])
+    return 0
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ["latest-remote-dump"]:
+        sys.exit(latest_remote_dump())
     sys.exit(main())

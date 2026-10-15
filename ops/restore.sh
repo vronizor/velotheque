@@ -45,26 +45,23 @@ fi
 
 if [ -n "$FROM_DRIVE" ]; then
   : "${BACKUP_USER:=velobackup}" "${PROTON_DRIVE_BIN:=proton-drive}" "${REMOTE_PARENT:=/my-files}" "${REMOTE_FOLDER:=Velotheque}"
-  drive() { sudo -u "$BACKUP_USER" -H env PROTON_DRIVE_CREDENTIALS_STORE="${PROTON_DRIVE_CREDENTIALS_STORE:-pass}" "$PROTON_DRIVE_BIN" "$@"; }
+  export VELOTHEQUE_DATA_DIR PROTON_DRIVE_VERSION PROTON_DRIVE_BIN REMOTE_PARENT REMOTE_FOLDER
+  export PROTON_DRIVE_CREDENTIALS_STORE="${PROTON_DRIVE_CREDENTIALS_STORE:-pass}"
+  helper=/usr/local/lib/velotheque-backup/proton_backup.py
+  [ -f "$helper" ] || helper="$VELOTHEQUE_DIR/ops/proton_backup.py"
+  # The Proton session belongs to the backup user; run the CLI as that user.
+  as_backup_user() {
+    if [ "$(id -un)" = "$BACKUP_USER" ]; then "$@"; else
+      sudo -u "$BACKUP_USER" -H --preserve-env=VELOTHEQUE_DATA_DIR,PROTON_DRIVE_VERSION,PROTON_DRIVE_BIN,PROTON_DRIVE_CREDENTIALS_STORE,REMOTE_PARENT,REMOTE_FOLDER "$@"
+    fi
+  }
   remote="$REMOTE_PARENT/$REMOTE_FOLDER/db"
   if [ "$FROM_DRIVE" = "latest" ]; then
-    FROM_DRIVE="$(drive filesystem list --json "$remote" | python3 -c '
-import json, re, sys
-names = []
-def walk(n):
-    if isinstance(n, list): [walk(i) for i in n]
-    elif isinstance(n, dict):
-        if isinstance(n.get("name"), str): names.append(n["name"])
-        else: [walk(n[k]) for k in ("items", "children", "nodes", "files", "entries", "result", "data") if k in n]
-text = sys.stdin.read().strip()
-try: walk(json.loads(text))
-except json.JSONDecodeError: [walk(json.loads(l)) for l in text.splitlines() if l.strip()]
-dumps = sorted(n for n in names if re.match(r"^velotheque-\d{4}-\d{2}-\d{2}T\d{4}Z\.dump$", n))
-print(dumps[-1] if dumps else "")')"
-    [ -n "$FROM_DRIVE" ] || { echo "no dumps found in $remote" >&2; exit 1; }
+    FROM_DRIVE="$(as_backup_user python3 "$helper" latest-remote-dump)"
   fi
-  workdir="$(sudo -u "$BACKUP_USER" mktemp -d)"
-  drive filesystem download --json --file-conflict-strategy remove --folder-conflict-strategy merge "$remote/$FROM_DRIVE" "$workdir" > /dev/null
+  workdir="$(as_backup_user mktemp -d)"
+  as_backup_user "$PROTON_DRIVE_BIN" filesystem download --json --file-conflict-strategy remove \
+    --folder-conflict-strategy merge "$remote/$FROM_DRIVE" "$workdir" > /dev/null
   SOURCE="$workdir/$FROM_DRIVE"
   echo "downloaded $FROM_DRIVE"
 fi

@@ -52,6 +52,21 @@ def test_listing_parser_tolerates_shapes(output):
     assert pb.parse_listing(output) == ["a.dump", "b.dump"]
 
 
+def test_listing_parser_reads_proton_drive_0_9_shape():
+    """Shape seen from the real CLI (proton-drive 0.9.0, `filesystem list --json`)."""
+    node = {
+        "uid": "u1",
+        "parentUid": "p",
+        "name": {"ok": True, "value": "a.dump"},
+        "keyAuthor": {"ok": True, "value": "me@example.com"},
+        "type": "file",
+        "creationTime": "2026-10-15T11:50:00.000Z",
+    }
+    undecryptable = {**node, "uid": "u2", "name": {"ok": False, "error": "decryption failed"}}
+    other = {**node, "uid": "u3", "name": {"ok": True, "value": "b.dump"}}
+    assert pb.parse_listing(json.dumps([node, undecryptable, other])) == ["a.dump", "b.dump"]
+
+
 class FakeDrive:
     def __init__(self, remote: dict[str, set[str]] | None = None, version="0.9.0"):
         self.remote = remote or {}
