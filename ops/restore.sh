@@ -60,6 +60,7 @@ if [ -n "$FROM_DRIVE" ]; then
     FROM_DRIVE="$(as_backup_user python3 "$helper" latest-remote-dump)"
   fi
   workdir="$(as_backup_user mktemp -d)"
+  trap 'as_backup_user rm -rf "$workdir"' EXIT
   as_backup_user "$PROTON_DRIVE_BIN" filesystem download --json --file-conflict-strategy remove \
     --folder-conflict-strategy merge "$remote/$FROM_DRIVE" "$workdir" > /dev/null
   SOURCE="$workdir/$FROM_DRIVE"

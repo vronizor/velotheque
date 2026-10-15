@@ -25,6 +25,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - /etc/velotheque/backup.env on the Pi: VELOTHEQUE_DATA_DIR=/srv/velotheque until the SSD move
 - Port 8000 (and 8001, 8080, 80, 53, 3000) are used by other services on the Pi: APP_PORT=8010 there.
 
+## Pi deployment checklist (2026-10-16)
+- [x] Stack up on the Pi (APP_PORT 8010, data on SD at /srv/velotheque), migrations 0001–0004, PostGIS 3.6.4
+- [x] HTTPS + name via Tailscale Services
+- [x] Export imported, Strava connected + synced on the Pi
+- [x] Perf on the Pi under 1 s
+- [x] Backup: first run (531 photos), restore test from Drive OK, nightly timer, reboot test OK
+- [ ] Move data to the SSD before Milestone 4 (see Pi deployment notes)
+
 ## Owner feedback (2026-10-15)
 - [x] Clicking a list row (not the name) selects the ride and zooms the map to it; other rides stay drawn; click again to deselect; the name still opens the ride page
 - [x] "↺ Reset map" next to the drawing tools: clears the map area + selection, zooms back to all results
