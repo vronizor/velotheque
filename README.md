@@ -39,7 +39,18 @@ cp .env.example .env    # then edit it, see below
 docker compose up -d --build
 ```
 
-The app listens on `127.0.0.1:8000`. Put it behind the existing Caddy:
+The app listens on `127.0.0.1:$APP_PORT` (default 8000) and only on the Pi itself. To reach it over HTTPS from your devices, use either option below.
+
+**Option A: Tailscale serve** (no extra software). This gives a valid certificate for the Pi's MagicDNS name, and only your tailnet can reach it:
+
+```sh
+sudo tailscale serve --bg 8010        # use the APP_PORT from .env
+tailscale serve status                # → https://<pi>.<tailnet>.ts.net proxies to 127.0.0.1:8010
+```
+
+The first time, Tailscale may ask you to enable HTTPS certificates for the tailnet; follow its link. To stop serving, run `sudo tailscale serve reset`.
+
+**Option B: an existing Caddy on the host**:
 
 ```caddy
 mypi.my-tailnet.ts.net {
@@ -57,6 +68,7 @@ mypi.my-tailnet.ts.net {
 | `DATABASE_URL` | Only for running the CLI or tests on the host (`localhost:5432`). The app container gets its own. |
 | `VELOTHEQUE_DATA_DIR` | Host directory on the USB SSD. Postgres data goes in `$VELOTHEQUE_DATA_DIR/postgres`. |
 | `TAILSCALE_IP` | Interface the Postgres port is published on, so you can reach it from your SQL client over Tailscale. Defaults to `127.0.0.1`. |
+| `APP_PORT` | Host port the app listens on, on 127.0.0.1 only. Defaults to 8000; change it if something else uses 8000. |
 | `BASE_URL` | Public URL of the app, e.g. `https://mypi.my-tailnet.ts.net` |
 | `OAUTH_BASE_URL` | Optional override for the OAuth redirect only (see the fallback below) |
 | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | From <https://www.strava.com/settings/api> |

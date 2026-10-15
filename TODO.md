@@ -19,6 +19,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] PostGIS arm64: `postgresql-18-postgis-3` 3.6.x in PGDG bookworm-pgdg
 - [x] 2026 Strava API changes: nothing blocking. API base URL is configurable, Bearer header always sent.
 
+## Pi deployment notes
+- No SSD mounted yet: data on the SD card at /srv/velotheque (not under /mnt/ssd, so a later mount can't hide it). 15 GB free. Move to the SSD (rsync -aHAX, then change VELOTHEQUE_DATA_DIR in .env and backup.env) before Milestone 4's curated data exists.
+- No Caddy on the Pi (the spec assumed one): use `tailscale serve --bg <APP_PORT>` for HTTPS on the MagicDNS name.
+- Port 8000 (and 8001, 8080, 80, 53, 3000) are used by other services on the Pi: APP_PORT=8010 there.
+
 ## Owner feedback (2026-10-15)
 - [x] Clicking a list row (not the name) selects the ride and zooms the map to it; other rides stay drawn; click again to deselect; the name still opens the ride page
 - [x] "↺ Reset map" next to the drawing tools: clears the map area + selection, zooms back to all results
