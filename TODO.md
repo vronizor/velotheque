@@ -7,7 +7,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Docker Desktop installed on the Mac
 - [!] Git remote URL — wasn't in the message; needed before the first push
 - [x] Pi access: skipped by choice. Test on local Docker (arm64, same as the Pi); owner git-pulls on the Pi
-- [ ] Browser check of the UI (Claude-in-Chrome extension not connected; manual check by the owner)
+- [x] Browser check of the UI: done by the owner, all working
 - [ ] Put `STRAVA_CLIENT_SECRET` in `.env` (never commit it)
 - [ ] Proton Drive CLI on the Pi (M3). Mac build is at `~/Downloads/proton-drive`; docs: https://proton.me/support/drive-cli
   - M3 VERIFY: Linux arm64 build exists? (docs say macOS/Windows/Linux, arch unspecified)
@@ -55,9 +55,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] ratelimit.py: header parsing, budget guard
 - [x] OAuth routes: /strava/connect, /strava/callback (state cookie, scope check)
 - [x] Settings page: connection status + Connect button
-- [ ] Verify: real Connect works end to end (secret is set; waiting for the owner to click Connect on http://localhost:8000/settings)
+- [x] Verify: real Connect works end to end (localhost redirect; scopes read,activity:read_all,profile:read_all granted)
 - [ ] Deploy to Pi: clone, .env, compose up, Caddy site block
-- [ ] First real sync: fine on the local Docker stack now that the export covers the backfill (only ~5 API calls expected)
+- [x] First real sync (local Docker): 663 listed, 0 detail/stream calls thanks to the export, 32 s. Progress counter now updates every 25 activities.
 
 ### 3. Sync
 - [x] Athlete + gear fetch → raw

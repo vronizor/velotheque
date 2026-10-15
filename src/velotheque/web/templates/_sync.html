@@ -8,7 +8,7 @@
     <span>
       {% if job.kind == "refresh" %}Refreshing ride…
       {% elif job.counts.get("pending") is not none %}Fetching rides {{ job.counts.get("fetched", 0) }}/{{ job.counts.pending }}
-      {% else %}Listing activities… {{ job.counts.get("listed", 0) }}
+      {% else %}Reading activities from Strava… {{ job.counts.get("listed", 0) }} so far
       {% endif %}
     </span>
   {% else %}

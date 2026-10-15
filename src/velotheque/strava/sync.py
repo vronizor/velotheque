@@ -195,11 +195,12 @@ def _list_activities(engine: Engine, settings: Settings, client: StravaClient, j
             if changed:
                 counts["new_or_changed"] += 1
                 _ingest(engine, settings, summary["id"])
-        counts["listed"] += len(summaries)
+            counts["listed"] += 1
+            if counts["listed"] % 25 == 0:
+                _save_counts(engine, job_id, counts)
         if len(summaries) < PER_PAGE:
             break
         page += 1
-        _save_counts(engine, job_id, counts)
     counts["list_complete"] = True
     _save_counts(engine, job_id, counts)
 
