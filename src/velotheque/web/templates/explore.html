@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block body_class %}page-explore{% endblock %}
+{% block content %}
+<main class="explore">
+  <form id="filters" class="filters" action="/" method="get"
+        hx-get="/" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="change delay:150ms, submit">
+    <div class="filters-head">
+      <h2>Filters</h2>
+      {% if state.active %}<a href="/" class="reset">Reset</a>{% endif %}
+    </div>
+
+    <fieldset>
+      <legend>Date</legend>
+      <label>From <input type="date" name="after" value="{{ state.raw.get('after', [''])[0] }}"></label>
+      <label>To <input type="date" name="before" value="{{ state.raw.get('before', [''])[0] }}"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Type</legend>
+      {% for t in types %}
+        <label class="check"><input type="checkbox" name="type" value="{{ t }}" {% if state.has('type', t) %}checked{% endif %}> {{ t }}</label>
+      {% else %}
+        <p class="muted">No rides yet</p>
+      {% endfor %}
+    </fieldset>
+
+    <fieldset>
+      <legend>Bike</legend>
+      {% for b in bikes %}
+        <label class="check {% if b.retired %}retired{% endif %}"><input type="checkbox" name="bike" value="{{ b.id }}" {% if state.has('bike', b.id|string) %}checked{% endif %}> {{ b.name }}</label>
+      {% endfor %}
+      <label class="check"><input type="checkbox" name="bike" value="none" {% if state.has('bike', 'none') %}checked{% endif %}> <em>No bike</em></label>
+    </fieldset>
+
+    {% for legend, lo, hi, step in [("Distance (km)", "dist_min", "dist_max", "1"), ("Elevation (m)", "elev_min", "elev_max", "10"), ("Moving time (h)", "dur_min", "dur_max", "0.25")] %}
+    <fieldset class="range">
+      <legend>{{ legend }}</legend>
+      <input type="number" name="{{ lo }}" min="0" step="{{ step }}" placeholder="min" value="{{ state.raw.get(lo, [''])[0] }}" aria-label="{{ legend }} minimum">
+      <span>–</span>
+      <input type="number" name="{{ hi }}" min="0" step="{{ step }}" placeholder="max" value="{{ state.raw.get(hi, [''])[0] }}" aria-label="{{ legend }} maximum">
+    </fieldset>
+    {% endfor %}
+
+    {% if state.errors %}
+      <p class="error">Ignored: {% for p, e in state.errors.items() %}{{ p }} ({{ e }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+    <noscript><button type="submit">Apply</button></noscript>
+  </form>
+
+  <section class="map-pane">
+    <div id="map" data-style="{{ map_style_url }}"></div>
+  </section>
+
+  {% include "_results.html" %}
+</main>
+{% endblock %}

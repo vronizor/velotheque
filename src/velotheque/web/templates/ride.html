@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ ride.name }} · Vélothèque{% endblock %}
+{% block body_class %}page-ride{% endblock %}
+{% block content %}
+<main class="ride">
+  <div class="ride-head">
+    <div>
+      <p class="muted"><a href="javascript:history.back()">← Back</a></p>
+      <h1>{{ ride.name or "Untitled" }}</h1>
+      <p class="muted">
+        {{ ride.start_at_local | when("%A %d %B %Y, %H:%M") }}{% if ride.timezone %} ({{ ride.timezone }}){% endif %}
+        · <span class="tag">{{ ride.type }}</span>{% if ride.trainer %} <span class="tag">indoor</span>{% endif %}
+      </p>
+    </div>
+    <div class="ride-actions">
+      <button class="button" hx-post="/rides/{{ ride.id }}/refresh" hx-target="#sync" hx-swap="outerHTML">Refresh from Strava</button>
+      <a class="muted" href="https://www.strava.com/activities/{{ ride.source_id }}" target="_blank" rel="noopener">Open on Strava ↗</a>
+    </div>
+  </div>
+
+  <dl class="stats">
+    <div><dt>Distance</dt><dd>{{ ride.distance_m | km }} km</dd></div>
+    <div><dt>Elevation</dt><dd>{{ ride.elevation_gain_m | whole }} m</dd></div>
+    <div><dt>Moving time</dt><dd>{{ ride.moving_time_s | duration }}</dd></div>
+    <div><dt>Elapsed</dt><dd>{{ ride.elapsed_time_s | duration }}</dd></div>
+    <div><dt>Avg speed</dt><dd>{{ "%.1f" | format(ride.distance_m / ride.moving_time_s * 3.6 if ride.moving_time_s else 0) }} km/h</dd></div>
+    <div><dt>Bike</dt><dd>{{ ride.bike_name or "—" }}</dd></div>
+  </dl>
+
+  {% if track %}
+    <div id="ride-map" class="ride-map" data-style="{{ map_style_url }}" data-track='{{ track }}'></div>
+  {% else %}
+    <p class="muted no-track">No GPS track for this ride.</p>
+  {% endif %}
+
+  {% if ride.description %}
+    <section class="description">{{ ride.description }}</section>
+  {% endif %}
+
+  <p class="muted small">Last synced {{ ride.synced_at | when }} UTC · Strava activity {{ ride.source_id }}</p>
+</main>
+{% endblock %}

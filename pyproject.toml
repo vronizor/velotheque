@@ -1,0 +1,42 @@
+[project]
+name = "velotheque"
+version = "0.1.0"
+description = "Self-hosted explorer for my Strava cycling history"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13",
+    "fastapi>=0.115",
+    "geoalchemy2>=0.15",
+    "httpx>=0.27",
+    "jinja2>=3.1",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.4",
+    "sqlalchemy>=2.0.30",
+    "uvicorn>=0.30",
+]
+
+[project.scripts]
+velotheque = "velotheque.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

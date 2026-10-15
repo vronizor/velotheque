@@ -1,0 +1,27 @@
+{% set running = job and job.status == "running" %}
+<div id="sync" class="sync"
+  {% if running %}hx-get="/jobs/{{ job.id }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% if not connected %}
+    <a class="button" href="/settings">Connect Strava</a>
+  {% elif running %}
+    <span class="spinner" aria-hidden="true"></span>
+    <span>
+      {% if job.kind == "refresh" %}Refreshing ride…
+      {% elif job.counts.get("pending") is not none %}Fetching rides {{ job.counts.get("fetched", 0) }}/{{ job.counts.pending }}
+      {% else %}Listing activities… {{ job.counts.get("listed", 0) }}
+      {% endif %}
+    </span>
+  {% else %}
+    <button class="button" hx-post="/jobs/sync" hx-target="#sync" hx-swap="outerHTML">Sync now</button>
+    {% if job %}
+      <a class="sync-status status-{{ job.status }}" href="/settings#history"
+         title="{{ job.error or '' }}">
+        {% if job.status == "succeeded" %}Synced {{ job.finished_at | when("%d %b %H:%M") }}
+        {% elif job.status == "rate_limited" %}Rate limited · resume after {{ job.resumes_after | when("%H:%M") }} UTC
+        {% elif job.status == "failed" %}Last sync failed
+        {% else %}Last sync {{ job.status }}
+        {% endif %}
+      </a>
+    {% endif %}
+  {% endif %}
+</div>

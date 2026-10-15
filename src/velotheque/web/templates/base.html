@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"historyCacheSize": 0, "refreshOnHistoryMiss": true}'>
+  <title>{% block title %}Vélothèque{% endblock %}</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/vendor/maplibre-gl.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/static/logo.svg" alt="" width="28" height="28">Vélothèque</a>
+    <nav>
+      <a href="/">Explore</a>
+      <a href="/settings">Settings</a>
+    </nav>
+    <div id="sync" hx-get="/jobs/latest" hx-trigger="load" hx-swap="outerHTML"></div>
+  </header>
+  {% block content %}{% endblock %}
+</body>
+</html>

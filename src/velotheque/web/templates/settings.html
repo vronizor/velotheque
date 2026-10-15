@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Settings · Vélothèque{% endblock %}
+{% block content %}
+<main class="settings">
+  <h1>Settings</h1>
+  {% if message %}<p class="notice">{{ message }}</p>{% endif %}
+
+  <section>
+    <h2>Strava</h2>
+    {% if not configured %}
+      <p class="error">Set <code>STRAVA_CLIENT_ID</code> and <code>STRAVA_CLIENT_SECRET</code> in <code>.env</code>, then restart the app.</p>
+    {% elif auth %}
+      <p>Connected as athlete <strong>{{ auth.athlete_id }}</strong>. Scopes: <code>{{ auth.scope }}</code>.</p>
+      {% if missing_scopes %}
+        <p class="error">Missing scopes: {{ missing_scopes | join(", ") }}. Reconnect and leave all boxes ticked.</p>
+      {% endif %}
+      <p class="muted">Access token {{ "valid until" if auth.expires_at > now else "expired at" }} {{ auth.expires_at | when }} UTC (it refreshes automatically).</p>
+      <a class="button secondary" href="/strava/connect">Reconnect</a>
+    {% else %}
+      <p>Not connected yet.</p>
+      <a class="button" href="/strava/connect">Connect to Strava</a>
+    {% endif %}
+    <p class="muted small">Redirect URI: <code>{{ redirect_uri }}</code>. Its host must match the app's “Authorization Callback Domain” on strava.com/settings/api.</p>
+  </section>
+
+  <section id="history">
+    <h2>Sync history</h2>
+    {% if jobs %}
+    <div class="table-wrap">
+      <table class="jobs">
+        <thead><tr><th>#</th><th>Kind</th><th>Started</th><th>Finished</th><th>Status</th><th>Counts</th><th>Note</th></tr></thead>
+        <tbody>
+        {% for j in jobs %}
+          <tr>
+            <td>{{ j.id }}</td>
+            <td>{{ j.kind }}{% if j.activity_source_id %} {{ j.activity_source_id }}{% endif %}</td>
+            <td>{{ j.started_at | when }}</td>
+            <td>{{ j.finished_at | when }}</td>
+            <td><span class="status-{{ j.status }}">{{ j.status }}</span></td>
+            <td class="small">{% for k, v in j.counts.items() if k not in ("list_after", "list_complete") %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+            <td class="small">{% if j.resumes_after %}resume after {{ j.resumes_after | when }} UTC{% endif %}{{ j.error or "" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="muted">No syncs yet.</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}
