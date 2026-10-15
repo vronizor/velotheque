@@ -19,6 +19,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] PostGIS arm64: `postgresql-18-postgis-3` 3.6.x in PGDG bookworm-pgdg
 - [x] 2026 Strava API changes: nothing blocking. API base URL is configurable, Bearer header always sent.
 
+## Owner feedback (2026-10-15)
+- [x] Clicking a list row (not the name) selects the ride and zooms the map to it; other rides stay drawn; click again to deselect; the name still opens the ride page
+- [x] "↺ Reset map" next to the drawing tools: clears the map area + selection, zooms back to all results
+- [ ] Filter by place name (Aragón, Paris, …) = region filter, spec Milestone 6 (GADM). Not built yet; search only matches ride names/descriptions
+
 ## M3 — Backup to Proton Drive
 - [x] VERIFY proton-drive CLI v0.9.0 (Mac binary + docs): linux/arm64 glibc build exists; `filesystem delete` + `trash` exist → prune by name; headless = `auth login` URL opened elsewhere + PROTON_DRIVE_CREDENTIALS_STORE (keychain | pass | unsafe_file); upload strategies replace/skip/rename/create-new-revision, folders merge. Per-command --help broken in 0.9.0; list --json shape + exit codes undocumented
 - [x] VERIFY live (Mac, throwaway folder, since deleted): list --json = array of nodes with name {"ok", "value"} (first parser guess was wrong → fixed + test); errors exit 1 with stderr; folder merge creates the remote tree; unchanged re-upload skipped (22 s → 4.5 s); delete works only from /trash (pruning trashes); version pin refusal; restore --latest-from-drive OK in 13 s with matching counts

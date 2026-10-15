@@ -118,11 +118,13 @@ Strava's API has no documented endpoint that lists every photo of an activity. S
 - **One state everywhere:** all filters live in the URL, so every view can be bookmarked, the back button works, and a saved view is just a named query string.
 - **How filters combine:** values within one field are ORed, and different fields are ANDed.
 - **Counts:** the number next to each type, bike or photos option counts every other active filter except that field's own. It shows what ticking that option would give.
+- **Selecting a ride:** click a row in the list (anywhere but its name) to highlight that ride and zoom the map to it, with all other rides still drawn. Click the row again to deselect. Clicking the name opens the ride page.
 - **Search** (`q`) matches the start of every word in the name and description, ignoring accents (`valencia` finds “València”). Names also get a typo-tolerant match (`galibeir` finds “Galibier”). There's no language stemming, because titles mix French, Spanish, Catalan and English.
 - **Map area:**
   - **Rectangle**: click two opposite corners.
   - **Polygon**: click the corners, then click the first point again to close it.
   - **Filter to this view**: uses the visible map.
+  - **Reset map**: clears the map area and the selected ride, and zooms back to all results.
   - A ride matches if its track crosses the area. Panning on its own never filters.
 
 ## Backup to Proton Drive

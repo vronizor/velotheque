@@ -141,6 +141,9 @@ td.col-name { white-space: normal; }
 td.col-name a { text-decoration: none; font-weight: 500; }
 td.col-name a:hover { text-decoration: underline; }
 tr.hl td { background: #f6dcd6; }
+#results tr[data-id] { cursor: pointer; }
+tr.selected td { background: #f1c9c1; }
+tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 .empty { padding: 20px 10px; }
 .more { padding: 8px 16px; }
 
