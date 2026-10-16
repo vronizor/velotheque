@@ -13,11 +13,18 @@
         · added {{ route.created_at | when("%Y-%m-%d") }}
       </p>
     </div>
-    {% if rides %}
     <div class="ride-actions">
-      <a class="button" href="/?overlaps_route={{ route.id }}:0">Show these {{ rides|length }} rides in Explore</a>
+      {% if rides %}
+        <a class="button" href="/?overlaps_route={{ route.id }}:0">Show these {{ rides|length }} rides in Explore</a>
+      {% endif %}
+      {% if gpx_studio %}
+        <a class="button secondary" href="{{ gpx_studio }}" target="_blank" rel="noopener" title="Opens the original file{{ 's' if files|length > 1 }} in gpx.studio (your browser fetches {{ 'them' if files|length > 1 else 'it' }} from Vélothèque)">Open in gpx.studio ↗</a>
+        <span class="muted">
+          {% if files|length == 1 %}<a href="/routes/{{ route.id }}/files/{{ files[0].id }}">Download GPX</a>{% else %}<a href="#files">{{ files|length }} GPX files ↓</a>{% endif %}
+          · <a href="/routes/import">Import a GPX</a>
+        </span>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
 
   {% if message %}<p class="notice">{{ message }}</p>{% endif %}
@@ -81,7 +88,7 @@
         <button type="submit">Save</button>
       </form>
 
-      <h2>GPX files</h2>
+      <h2 id="files">GPX files</h2>
       <ul class="plain-list small">
         {% for f in files %}
           <li><a href="/routes/{{ route.id }}/files/{{ f.id }}">{{ f.filename }}</a> <span class="muted">{{ (f.size / 1024) | round | int }} KB</span></li>

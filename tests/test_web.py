@@ -337,3 +337,31 @@ def test_components_flow(client, db):
     assert "Retired" in client.get("/components").text
     client.post(f"/components/{chain}/delete")
     assert client.get(f"/components/{chain}").status_code == 404
+
+
+def _studio_files(page_text: str) -> list[str]:
+    import re
+    from html import unescape
+    from urllib.parse import parse_qs, urlsplit
+
+    href = unescape(re.search(r'href="(https://gpx\.studio/app\?[^"]+)"', page_text).group(1))
+    return json.loads(parse_qs(urlsplit(href).query)["files"][0])
+
+
+def test_open_in_gpx_studio(client, db):
+    with db.connect() as conn:
+        ride_id = conn.execute(select(activity.c.id).where(activity.c.source_id == 1)).scalar()
+    page = client.get(f"/rides/{ride_id}").text
+    [ride_url] = _studio_files(page)
+    assert ride_url == f"http://localhost:8000/rides/{ride_id}/gpx/col-du-galibier.gpx"
+    served = client.get(ride_url.removeprefix("http://localhost:8000"))
+    assert served.headers["access-control-allow-origin"] == "https://gpx.studio"
+    assert served.headers["content-type"] == "application/gpx+xml"
+    assert b"<name>Col du Galibier</name>" in served.content and b"<trkpt" in served.content
+
+    route_url = _upload(client, ("Étape 1.gpx", ROUTE_GPX)).headers["location"]
+    [file_url] = _studio_files(client.get(route_url).text)
+    assert file_url.endswith("/etape-1.gpx")
+    original = client.get(file_url.removeprefix("http://localhost:8000"))
+    assert original.content == ROUTE_GPX
+    assert original.headers["access-control-allow-origin"] == "https://gpx.studio"

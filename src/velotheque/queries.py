@@ -209,6 +209,19 @@ def ride_profile(conn: Connection, activity_id: int) -> str | None:
     return json.dumps(profile, separators=(",", ":")) if profile else None
 
 
+def ride_track_points(conn: Connection, activity_id: int):
+    """The full-resolution track: GeoJSON lines plus the per-point time and altitude arrays."""
+    t = activity_track
+    found = conn.execute(
+        select(func.ST_AsGeoJSON(t.c.geometry, 7), t.c.time_s, t.c.altitude_m).where(
+            t.c.activity_id == activity_id
+        )
+    ).first()
+    if found is None:
+        return None
+    return json.loads(found[0])["coordinates"], found.time_s, found.altitude_m
+
+
 FACETS = ("type", "bike", "group", "with", "photos", "region")
 
 

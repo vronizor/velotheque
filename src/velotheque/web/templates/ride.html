@@ -14,7 +14,13 @@
     </div>
     <div class="ride-actions">
       <button class="button" hx-post="/rides/{{ ride.id }}/refresh" hx-target="#sync" hx-swap="outerHTML">Refresh from Strava</button>
-      <a class="muted" href="https://www.strava.com/activities/{{ ride.source_id }}" target="_blank" rel="noopener">Open on Strava ↗</a>
+      {% if track %}
+        <a class="button secondary" href="{{ gpx_studio }}" target="_blank" rel="noopener" title="Opens this ride's GPX in gpx.studio (your browser fetches it from Vélothèque)">Open in gpx.studio ↗</a>
+      {% endif %}
+      <span class="muted">
+        <a href="https://www.strava.com/activities/{{ ride.source_id }}" target="_blank" rel="noopener">Open on Strava ↗</a>
+        {% if track %} · <a href="{{ gpx_path }}" download>Download GPX</a>{% endif %}
+      </span>
     </div>
   </div>
 

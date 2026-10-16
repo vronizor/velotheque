@@ -185,6 +185,14 @@ Strava's API and bulk export never say who was on a group ride. The API only giv
 - Explore's **Rode with** box filters by person, with counts. **Settings → People** lists everyone with their ride count; renaming someone to a name already listed merges the two (rides and Strava ids).
 - Mentions already in your descriptions were picked up when migration 0009 ran.
 
+## Open in gpx.studio
+
+Ride and route pages have an **Open in gpx.studio ↗** button. A ride opens as a GPX generated from its stored track (time and elevation on every point; gaps become separate segments). A route opens its original files, one per stage for a merged race. **Download GPX** gives the same file.
+
+- It uses gpx.studio's own `…/app?files=[…]` link: your browser downloads the file from Vélothèque, so it works on any device on your tailnet, while gpx.studio's servers never see it. The GPX responses carry `Access-Control-Allow-Origin: https://gpx.studio`, which lets the page read them. Links are built from `BASE_URL`.
+- Chrome (142 and later) asks once whether gpx.studio may "access devices on your local network": Tailscale's 100.64.0.0/10 addresses count as local. Allow it. If you blocked it by mistake, re-allow it in gpx.studio's site settings (padlock → Local network access).
+- Edited something there? Export it from gpx.studio and bring it back with **Import a GPX** (route page, or `/routes/import`).
+
 ## Components and maintenance
 
 **Components** (top menu) tracks parts per bike: chains, cassettes, tyres, forks… Strava's API has no components, so this is all entered by hand, and it is the data the nightly backup exists for.

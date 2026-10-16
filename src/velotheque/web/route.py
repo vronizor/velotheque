@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import Connection, delete, select, update
 
-from velotheque import queries
+from velotheque import gpx, queries
 from velotheque.config import get_settings
 from velotheque.routes import clean_source, clean_tags, import_files
 from velotheque.tables import route
@@ -93,6 +93,9 @@ def _route_or_404(conn: Connection, route_id: int):
 @router.get("/routes/{route_id}")
 def route_page(route_id: int, request: Request, conn: Connection = Depends(get_conn)):
     found = _route_or_404(conn, route_id)
+    files = queries.route_files(conn, route_id)
+    base = get_settings().base_url.rstrip("/")
+    file_paths = [_file_path(route_id, f.id, f.filename) for f in files]
     return templates.TemplateResponse(
         request,
         "route.html",
@@ -102,7 +105,9 @@ def route_page(route_id: int, request: Request, conn: Connection = Depends(get_c
             "profile": queries.route_profile(conn, route_id),
             "rides": queries.route_rides(conn, route_id),
             "regions": queries.route_regions(conn, route_id),
-            "files": queries.route_files(conn, route_id),
+            "files": files,
+            "file_paths": file_paths,
+            "gpx_studio": gpx.gpx_studio_url([base + p for p in file_paths]) if files else None,
             "tags": queries.all_tags(conn),
             "sources": queries.all_sources(conn),
             "map_style_url": get_settings().map_style_url,
@@ -150,6 +155,10 @@ def ride_on_route(route_id: int, activity_id: int, conn: Connection = Depends(ge
     return Response(found, media_type="application/geo+json")
 
 
+def _file_path(route_id: int, file_id: int, filename: str) -> str:
+    return f"/routes/{route_id}/files/{file_id}/{gpx.file_slug(filename)}"
+
+
 @router.get("/routes/{route_id}/files/{file_id}")
 def route_file_download(route_id: int, file_id: int, conn: Connection = Depends(get_conn)):
     found = queries.route_file_content(conn, route_id, file_id)
@@ -159,4 +168,19 @@ def route_file_download(route_id: int, file_id: int, conn: Connection = Depends(
         found.content,
         media_type="application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(found.filename)}"},
+    )
+
+
+@router.get("/routes/{route_id}/files/{file_id}/{filename}")
+def route_file_open(
+    route_id: int, file_id: int, filename: str, conn: Connection = Depends(get_conn)
+):
+    """The original file under a URL-safe name, readable by gpx.studio."""
+    found = queries.route_file_content(conn, route_id, file_id)
+    if found is None:
+        raise HTTPException(404, "File not found")
+    return Response(
+        found.content,
+        media_type="application/octet-stream",
+        headers={"Access-Control-Allow-Origin": gpx.GPX_STUDIO},
     )
