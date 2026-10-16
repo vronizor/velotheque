@@ -18,11 +18,14 @@
         <a class="button" href="/?overlaps_route={{ route.id }}:0">Show these {{ rides|length }} rides in Explore</a>
       {% endif %}
       {% if gpx_studio %}
-        <a class="button secondary" href="{{ gpx_studio }}" target="_blank" rel="noopener" title="Opens the original file{{ 's' if files|length > 1 }} in gpx.studio (your browser fetches {{ 'them' if files|length > 1 else 'it' }} from Vélothèque)">Open in gpx.studio ↗</a>
-        <span class="muted">
-          {% if files|length == 1 %}<a href="/routes/{{ route.id }}/files/{{ files[0].id }}">Download GPX</a>{% else %}<a href="#files">{{ files|length }} GPX files ↓</a>{% endif %}
-          · <a href="/routes/import">Import a GPX</a>
-        </span>
+        <div class="action-row">
+          <a class="button ghost" href="{{ gpx_studio }}" target="_blank" rel="noopener" title="Open the original file{{ 's' if files|length > 1 }} in gpx.studio (your browser fetches {{ 'them' if files|length > 1 else 'it' }} from Vélothèque)">gpx.studio ↗</a>
+          {% if files|length == 1 %}
+            <a class="button ghost" href="/routes/{{ route.id }}/files/{{ files[0].id }}" title="Download the original GPX">GPX ↓</a>
+          {% else %}
+            <a class="button ghost" href="#files" title="Jump to the list of GPX files">{{ files|length }} GPX ↓</a>
+          {% endif %}
+        </div>
       {% endif %}
     </div>
   </div>

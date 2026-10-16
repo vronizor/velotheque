@@ -106,7 +106,7 @@ The access token shown on Strava's API page only has `read` scope, so it isn't u
   4. Fetch details and full GPS streams, newest first, for new or changed rides.
 - **Rate limits** are read from Strava's response headers. When fewer than 3 calls remain in the 15-minute or daily window, the job stops with status `rate_limited` and shows when to try again. The next click resumes where it stopped.
 - **Change detection** ignores kudos and other counters. A rename, a different bike or a cropped distance triggers a re-fetch.
-- **Fixing a wrong title or bike:** edit it on Strava, then click **Refresh from Strava** on the ride page.
+- **Fixing a wrong title or bike:** edit it on Strava, then click **↻ Refresh** on the ride page.
 - **Rides that are left out:** only cycling sport types are normalized. Other activities are kept in the raw tables.
 
 ## Importing the Strava bulk export
@@ -187,11 +187,11 @@ Strava's API and bulk export never say who was on a group ride. The API only giv
 
 ## Open in gpx.studio
 
-Ride and route pages have an **Open in gpx.studio ↗** button. A ride opens as a GPX generated from its stored track (time and elevation on every point; gaps become separate segments). A route opens its original files, one per stage for a merged race. **Download GPX** gives the same file.
+Ride and route pages have a **gpx.studio ↗** button. A ride opens as a GPX generated from its stored track (time and elevation on every point; gaps become separate segments). A route opens its original files, one per stage for a merged race. **GPX ↓** downloads the same file.
 
 - It uses gpx.studio's own `…/app?files=[…]` link: your browser downloads the file from Vélothèque, so it works on any device on your tailnet, while gpx.studio's servers never see it. The GPX responses carry `Access-Control-Allow-Origin: https://gpx.studio`, which lets the page read them. Links are built from `BASE_URL`.
 - Chrome (142 and later) asks once whether gpx.studio may "access devices on your local network": Tailscale's 100.64.0.0/10 addresses count as local. Allow it. If you blocked it by mistake, re-allow it in gpx.studio's site settings (padlock → Local network access).
-- Edited something there? Export it from gpx.studio and bring it back with **Import a GPX** (route page, or `/routes/import`).
+- Edited something there? Export it from gpx.studio and bring it back with **+ Import GPX** on the routes list (`/routes/import`).
 
 ## Components and maintenance
 
@@ -204,7 +204,7 @@ Ride and route pages have an **Open in gpx.studio ↗** button. A ride opens as 
 - Bars turn amber at 90% and red past 100%. **Due soon** at the top lists every service past half its interval, most worn first. Each bar has a quick **Log** button (done now); log on the component page to give a date and notes.
 - A new component can copy the service intervals of an older one (a new chain like the last one).
 - A ride's page lists the components on its bike that day. `/?component=<id>` in Explore lists the rides done with a component.
-- Rides count only if Strava has a bike on them. The Components page lists rides without one; fix the bike on Strava and use “Refresh from Strava”.
+- Rides count only if Strava has a bike on them. The Components page lists rides without one; fix the bike on Strava and use **↻ Refresh** on the ride.
 
 ## Regions
 
