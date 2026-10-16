@@ -7,7 +7,7 @@ from sqlalchemy import select, text
 
 from velotheque.derive import derive_activities, rebuild_derived
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
-from velotheque.geo import elevation_gain
+from velotheque.geo import elevation_gain, elevation_profile
 from velotheque.routes import clean_source, import_export_routes, import_files, import_library
 from velotheque.tables import activity, route, route_coverage, route_file, route_ride_overlap
 from velotheque.trackfiles import parse_route_file
@@ -277,3 +277,19 @@ def test_library_folder_merges_subfolders(conn, tmp_path):
     assert sorted(name for _, name in report.created) == ["2023_some-race", "Loop"]
     assert report.skipped == []
     assert import_library(conn, tmp_path).created == []
+
+
+def test_elevation_profile_samples_and_smooths_grade():
+    n = 5001
+    distances = [i * 2.0 for i in range(n)]  # 10 km, a point every 2 m
+    altitudes = [d * 0.05 + (3 if i % 2 else 0) for i, d in enumerate(distances)]  # 5% + noise
+    coords = [(6 + i * 1e-5, 46.0) for i in range(n)]
+    profile = elevation_profile(distances, altitudes, coords, points=100)
+    assert 95 <= len(profile) <= 102
+    assert profile[0][0] == 0 and profile[-1][0] == 10
+    assert all(abs(p[2] - 5) < 1 for p in profile[1:-1])
+    km, *_, lng, lat = profile[10]
+    assert (lng, lat) == (round(coords[round(km * 500)][0], 6), 46.0)
+    gappy = elevation_profile([0, 100, None, 300], [10, 20, None, 40], coords[:3])
+    assert [p[0] for p in gappy] == [0, 0.1, 0.3] and gappy[-1][3] == coords[2][0]
+    assert elevation_profile([0, 0], [1, 2], coords[:2]) is None

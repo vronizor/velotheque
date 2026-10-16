@@ -54,6 +54,7 @@ def test_ride_page(client, db):
     page = client.get(f"/rides/{ride_id}")
     assert page.status_code == 200
     assert "Col du Galibier" in page.text and 'id="ride-map"' in page.text
+    assert 'id="ride-profile"' in page.text and 'data-resize="ride-map"' in page.text
     assert client.get("/rides/987654").status_code == 404
 
 
@@ -206,7 +207,10 @@ def test_route_import_page_edit_download_delete(client, db):
     assert again.status_code == 200 and "already in route" in again.text
 
     ride_id = client.get("/explore/rides.geojson").json()["features"][0]["id"]
-    assert "Renamed" in client.get(f"/rides/{ride_id}").text
+    ride_page = client.get(f"/rides/{ride_id}").text
+    assert "Renamed" in ride_page and 'data-layer="routes"' in ride_page
+    on_map = client.get(f"/rides/{ride_id}/routes.geojson").json()["features"]
+    assert [f["properties"]["name"] for f in on_map] == ["Renamed"]
 
     assert client.post(f"{route_url}/delete", follow_redirects=False).status_code == 303
     assert client.get(route_url).status_code == 404

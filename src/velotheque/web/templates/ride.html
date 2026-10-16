@@ -29,6 +29,13 @@
 
   {% if track %}
     <div id="ride-map" class="ride-map" data-style="{{ map_style_url }}" data-track='{{ track }}'></div>
+    <div class="resize-handle" data-resize="ride-map" role="separator" tabindex="0" aria-orientation="horizontal" title="Drag to resize the map"></div>
+    {% if routes %}
+      <p class="muted small legend"><label class="check"><input type="checkbox" data-layer="routes" data-url="/rides/{{ ride.id }}/routes.geojson"> <span class="key key-route"></span> show the route{{ "" if routes|length == 1 else "s" }} it rides ({{ routes|length }})</label></p>
+    {% endif %}
+    {% if profile %}
+      <div id="ride-profile" class="profile" data-profile='{{ profile }}' aria-label="Elevation profile"></div>
+    {% endif %}
   {% else %}
     <p class="muted no-track">No GPS track for this ride.</p>
   {% endif %}
@@ -56,9 +63,12 @@
       <div class="gallery-grid">
         {% for p in photos %}
           {% if p.kind == "video" %}
-            <video class="tile" src="/{{ p.file_path }}" controls preload="metadata"></video>
+            <a class="tile tile-video" href="/{{ p.file_path }}" data-lightbox="video" aria-label="Video {{ loop.index }} of {{ ride.name }}">
+              <video src="/{{ p.file_path }}#t=0.1" preload="metadata" muted playsinline></video>
+              <span class="play" aria-hidden="true">▶</span>
+            </a>
           {% else %}
-            <a class="tile" href="/{{ p.file_path }}" data-lightbox="{{ loop.index0 }}">
+            <a class="tile" href="/{{ p.file_path }}" data-lightbox="image">
               <img src="/{{ p.thumb_path or p.file_path }}" alt="Photo {{ loop.index }} of {{ ride.name }}" loading="lazy">
             </a>
           {% endif %}
@@ -70,6 +80,11 @@
     </section>
     <dialog id="lightbox" class="lightbox">
       <img alt="">
+      <video controls playsinline hidden></video>
+      {% if photos|length > 1 %}
+        <button type="button" class="lightbox-nav prev" data-step="-1" aria-label="Previous">‹</button>
+        <button type="button" class="lightbox-nav next" data-step="1" aria-label="Next">›</button>
+      {% endif %}
       <form method="dialog"><button aria-label="Close">×</button></form>
     </dialog>
   {% endif %}

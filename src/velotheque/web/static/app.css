@@ -242,3 +242,35 @@ details.ride-routes > summary::-webkit-details-marker { display: none; }
 details.ride-routes > summary::before { content: "▸"; color: var(--muted); font-size: 1.2rem; width: 0.8em; }
 details.ride-routes[open] > summary::before { content: "▾"; }
 details.ride-routes > summary h2 { margin-block: 0.6em; }
+
+.resize-handle { height: 10px; margin: 2px 0 4px; cursor: ns-resize; touch-action: none; display: flex; align-items: center; justify-content: center; }
+.resize-handle::after { content: ""; width: 44px; height: 4px; border-radius: 2px; background: var(--line); }
+.resize-handle:hover::after, .resize-handle.dragging::after { background: var(--muted); }
+.results > .resize-handle { margin: 0; height: 8px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.dragging-resize, .dragging-resize * { cursor: ns-resize !important; user-select: none; }
+
+.profile { position: relative; height: 150px; margin: 6px 0 4px; user-select: none; touch-action: pan-y; }
+.profile svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.profile .area { fill: var(--cream); }
+.profile .line { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.profile .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.profile .grid { stroke: var(--line); stroke-width: 1; }
+.profile .cursor { stroke: var(--ink); stroke-width: 1; }
+.profile .dot { fill: var(--red); stroke: #fff; stroke-width: 1.5; }
+.profile-tip { position: absolute; top: 0; transform: translateX(-50%); background: var(--ink); color: var(--paper); font-size: 0.8rem; padding: 2px 7px; border-radius: 4px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+
+.tile-video { position: relative; }
+.tile-video video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile-video .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 2rem; text-shadow: 0 1px 6px rgb(0 0 0 / 0.6); }
+.lightbox video { display: block; max-width: 94vw; max-height: 94vh; background: #000; }
+.lightbox video[hidden], .lightbox img[hidden] { display: none; }
+.lightbox-nav { position: fixed; top: 50%; transform: translateY(-50%); background: rgb(0 0 0 / 0.45); font-size: 2rem; line-height: 1; padding: 6px 12px; }
+.lightbox-nav.prev { left: 10px; }
+.lightbox-nav.next { right: 10px; }
+
+@media (min-width: 761px) {
+  .explore { grid-template-rows: minmax(0, var(--map-share, 55%)) minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .results > .resize-handle { display: none; }
+}

@@ -1,3 +1,5 @@
+import bisect
+import itertools
 import math
 
 MAX_GAP_M = 500.0
@@ -100,3 +102,57 @@ def elevation_gain(altitudes, threshold_m: float = CLIMB_THRESHOLD_M) -> float:
         elif value - low >= threshold_m:
             climbing, high = True, value
     return total + (high - low if climbing else 0.0)
+
+
+PROFILE_POINTS = 1000
+GRADE_WINDOW_M = 100.0
+
+
+def _interpolate(xs: list[float], ys: list[float], x: float) -> float:
+    i = bisect.bisect_left(xs, x)
+    if i == 0:
+        return ys[0]
+    if i >= len(xs):
+        return ys[-1]
+    x0, x1 = xs[i - 1], xs[i]
+    t = (x - x0) / (x1 - x0) if x1 > x0 else 0
+    return ys[i - 1] + t * (ys[i] - ys[i - 1])
+
+
+def elevation_profile(
+    distances, altitudes, coords, points: int = PROFILE_POINTS, window_m: float = GRADE_WINDOW_M
+) -> list[tuple] | None:
+    """[(km, altitude m, grade %, lng, lat)] for a chart: about `points` samples evenly spread
+    by distance, grade over ±window_m so GPS noise doesn't show as 30% ramps. `coords` are
+    the track's [lng, lat]; when they don't line up with the streams (points without GPS were
+    dropped from the line), positions are interpolated along the line by distance share."""
+    rows = [
+        (d, a, i)
+        for i, (d, a) in enumerate(zip(distances or [], altitudes or [], strict=False))
+        if d is not None and a is not None
+    ]
+    if len(rows) < 2 or rows[-1][0] <= rows[0][0]:
+        return None
+    ds, alts = [r[0] for r in rows], [r[1] for r in rows]
+    aligned = len(coords) == len(distances)
+    if not aligned:
+        along = [0.0]
+        for a, b in itertools.pairwise(coords):
+            along.append(along[-1] + haversine_m(a[::-1], b[::-1]))
+        lngs, lats = [c[0] for c in coords], [c[1] for c in coords]
+    start, end = ds[0], ds[-1]
+    step = (end - start) / points
+    out, mark = [], start
+    for d, a, i in rows:
+        if d < mark and d != end:
+            continue
+        mark = d + step
+        lo, hi = max(d - window_m, start), min(d + window_m, end)
+        grade = (_interpolate(ds, alts, hi) - _interpolate(ds, alts, lo)) / (hi - lo) * 100
+        if aligned:
+            lng, lat = coords[i]
+        else:
+            x = (d - start) / (end - start) * along[-1]
+            lng, lat = _interpolate(along, lngs, x), _interpolate(along, lats, x)
+        out.append((round(d / 1000, 3), round(a, 1), round(grade, 1), round(lng, 6), round(lat, 6)))
+    return out

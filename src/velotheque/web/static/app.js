@@ -370,6 +370,15 @@ function initRide() {
     duration: 0,
   });
   map.on("load", () => {
+    map.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "routes",
+      type: "line",
+      source: "routes",
+      layout: { "line-join": "round", visibility: "none" },
+      paint: { "line-color": COLORS.route, "line-width": 3, "line-dasharray": [2, 1.5] },
+    });
+    linkPopups(map, "routes", "routes");
     map.addSource("track", { type: "geojson", data: track });
     map.addLayer({
       id: "track",
@@ -382,8 +391,192 @@ function initRide() {
     const last = track.coordinates.at(-1).at(-1);
     new maplibregl.Marker({ color: "#2f7d32", scale: 0.7 }).setLngLat(first).addTo(map);
     new maplibregl.Marker({ color: COLORS.highlight, scale: 0.7 }).setLngLat(last).addTo(map);
+    map.addSource("cursor", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "cursor",
+      type: "circle",
+      source: "cursor",
+      paint: { "circle-radius": 6, "circle-color": COLORS.highlight, "circle-stroke-color": "#fff", "circle-stroke-width": 2 },
+    });
   });
+  initProfile(map);
+  initLayerToggles(map, "ride");
   document.body.addEventListener("syncFinished", () => window.location.reload());
+}
+
+function niceStep(range, count) {
+  const raw = range / count;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  return [1, 2, 5, 10].map((m) => m * power).find((s) => s >= raw);
+}
+
+function initProfile(map) {
+  const el = document.getElementById("ride-profile");
+  if (!el) return;
+  const points = JSON.parse(el.dataset.profile); // [km, altitude, grade %, lng, lat]
+  const NS = "http://www.w3.org/2000/svg";
+  const pad = { left: 46, right: 10, top: 24, bottom: 18 };
+  const km0 = points[0][0];
+  const km1 = points.at(-1)[0];
+  const alts = points.map((p) => p[1]);
+  const low = Math.min(...alts);
+  const span = Math.max(Math.max(...alts) - low, 60);
+  const altStep = niceStep(span, 3);
+  const altMin = Math.floor(low / altStep) * altStep;
+  const altMax = Math.ceil((low + span) / altStep) * altStep;
+  const tip = Object.assign(document.createElement("div"), { className: "profile-tip", hidden: true });
+  let svg, cursor, dot, x, y;
+
+  function node(name, attrs, parent = svg) {
+    const n = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return parent.appendChild(n);
+  }
+
+  function draw() {
+    const width = el.clientWidth;
+    const height = el.clientHeight;
+    if (!width) return;
+    x = (km) => pad.left + ((km - km0) / (km1 - km0)) * (width - pad.left - pad.right);
+    y = (alt) => pad.top + ((altMax - alt) / (altMax - altMin)) * (height - pad.top - pad.bottom);
+    svg?.remove();
+    svg = document.createElementNS(NS, "svg");
+    el.prepend(svg);
+    for (let alt = altMin; alt <= altMax; alt += altStep) {
+      node("line", { class: "grid", x1: pad.left, x2: width - pad.right, y1: y(alt), y2: y(alt) });
+      node("text", { class: "axis", x: pad.left - 6, y: y(alt) + 4, "text-anchor": "end" }).textContent = `${alt} m`;
+    }
+    const kmStep = niceStep(km1 - km0, Math.max(2, Math.floor(width / 90)));
+    for (let km = Math.ceil(km0 / kmStep) * kmStep; km <= km1; km += kmStep) {
+      node("text", { class: "axis", x: x(km), y: height - 3, "text-anchor": "middle" }).textContent = `${km} km`;
+    }
+    const line = points.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join("");
+    const bottom = y(altMin);
+    node("path", { class: "area", d: `${line}L${x(km1)},${bottom}L${x(km0)},${bottom}Z` });
+    node("path", { class: "line", d: line });
+    cursor = node("line", { class: "cursor", y1: pad.top - 4, y2: bottom, visibility: "hidden" });
+    dot = node("circle", { class: "dot", r: 4, visibility: "hidden" });
+  }
+
+  function show(i) {
+    const [km, alt, grade, lng, lat] = points[i];
+    const px = x(km);
+    for (const [n, attrs] of [[cursor, { x1: px, x2: px }], [dot, { cx: px, cy: y(alt) }]]) {
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+      n.setAttribute("visibility", "visible");
+    }
+    tip.hidden = false;
+    tip.textContent = `${km.toFixed(1)} km · ${Math.round(alt)} m · ${grade > 0 ? "+" : ""}${grade.toFixed(1)} %`;
+    const half = tip.offsetWidth / 2;
+    tip.style.left = `${Math.min(Math.max(px, half), el.clientWidth - half)}px`;
+    map.getSource("cursor")?.setData({ type: "Point", coordinates: [lng, lat] });
+  }
+
+  function hide() {
+    cursor?.setAttribute("visibility", "hidden");
+    dot?.setAttribute("visibility", "hidden");
+    tip.hidden = true;
+    map.getSource("cursor")?.setData({ type: "FeatureCollection", features: [] });
+  }
+
+  function indexAt(km) {
+    let lo = 0;
+    let hi = points.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (points[mid][0] < km) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo > 0 && km - points[lo - 1][0] < points[lo][0] - km ? lo - 1 : lo;
+  }
+
+  el.append(tip);
+  draw();
+  new ResizeObserver(draw).observe(el);
+  el.addEventListener("pointermove", (e) => {
+    const px = e.clientX - el.getBoundingClientRect().left;
+    const width = el.clientWidth - pad.left - pad.right;
+    show(indexAt(km0 + ((px - pad.left) / width) * (km1 - km0)));
+  });
+  el.addEventListener("pointerleave", hide);
+  map.on("mousemove", "track", (e) => {
+    const { lng, lat } = e.lngLat;
+    const k = Math.cos((lat * Math.PI) / 180) ** 2;
+    let best = 0;
+    let bestD = Infinity;
+    points.forEach((p, i) => {
+      const d = (p[3] - lng) ** 2 * k + (p[4] - lat) ** 2;
+      if (d < bestD) [best, bestD] = [i, d];
+    });
+    show(best);
+  });
+  map.on("mouseleave", "track", hide);
+}
+
+const RESIZE_KEY = "velotheque.resize.";
+
+function storage(key, value) {
+  try {
+    if (value === undefined) return localStorage.getItem(key);
+    localStorage.setItem(key, value);
+  } catch {
+    return null;
+  }
+}
+
+function initResizers() {
+  const explore = document.querySelector(".explore");
+  const share = storage(`${RESIZE_KEY}explore`);
+  if (explore && share) explore.style.setProperty("--map-share", share);
+  document.querySelectorAll("[data-resize]").forEach((handle) => {
+    const target = document.getElementById(handle.dataset.resize);
+    const height = storage(`${RESIZE_KEY}${handle.dataset.resize}`);
+    if (target && height) target.style.height = height;
+  });
+
+  function resize(handle, clientY, delta) {
+    if (handle.dataset.resize === "explore-split") {
+      const box = explore.getBoundingClientRect();
+      const current = parseFloat(getComputedStyle(explore).getPropertyValue("--map-share")) || 55;
+      const pct = clientY === null ? current + (delta / box.height) * 100 : ((clientY - box.top) / box.height) * 100;
+      const value = `${Math.min(85, Math.max(15, pct)).toFixed(1)}%`;
+      explore.style.setProperty("--map-share", value);
+      return ["explore", value];
+    }
+    const target = document.getElementById(handle.dataset.resize);
+    const top = target.getBoundingClientRect().top;
+    const px = clientY === null ? target.offsetHeight + delta : clientY - top;
+    const value = `${Math.round(Math.min(window.innerHeight * 0.9, Math.max(180, px)))}px`;
+    target.style.height = value;
+    return [handle.dataset.resize, value];
+  }
+
+  document.addEventListener("pointerdown", (e) => {
+    const handle = e.target.closest?.("[data-resize]");
+    if (!handle) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("dragging");
+    document.body.classList.add("dragging-resize");
+    let last;
+    const move = (ev) => (last = resize(handle, ev.clientY));
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.classList.remove("dragging");
+      document.body.classList.remove("dragging-resize");
+      if (last) storage(RESIZE_KEY + last[0], last[1]);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up, { once: true });
+    handle.addEventListener("pointercancel", up, { once: true });
+  });
+  document.addEventListener("keydown", (e) => {
+    const handle = e.target.closest?.("[data-resize]");
+    if (!handle || !["ArrowUp", "ArrowDown"].includes(e.key)) return;
+    e.preventDefault();
+    const [key, value] = resize(handle, null, e.key === "ArrowUp" ? -40 : 40);
+    storage(RESIZE_KEY + key, value);
+  });
 }
 
 function lineBounds(collections) {
@@ -439,18 +632,49 @@ function initRoute() {
         paint: { "line-color": COLORS.covered, "line-width": 5 },
       });
     }
-    map.on("mousemove", "rides", () => (map.getCanvas().style.cursor = "pointer"));
-    map.on("mouseleave", "rides", () => (map.getCanvas().style.cursor = ""));
-    map.on("click", "rides", (e) => {
-      const feature = e.features[0];
-      if (!feature) return;
-      new maplibregl.Popup({ closeButton: false })
-        .setLngLat(e.lngLat)
-        .setHTML(`<a href="/rides/${feature.id}"></a>`)
-        .addTo(map)
-        .getElement()
-        .querySelector("a").textContent = feature.properties.name || "Untitled";
+    linkPopups(map, "rides", "rides");
+  });
+  initLayerToggles(map, "route");
+}
+
+function linkPopups(map, layer, path) {
+  map.on("mousemove", layer, () => (map.getCanvas().style.cursor = "pointer"));
+  map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
+  map.on("click", layer, (e) => {
+    const feature = e.features[0];
+    if (!feature) return;
+    new maplibregl.Popup({ closeButton: false })
+      .setLngLat(e.lngLat)
+      .setHTML(`<a href="/${path}/${feature.id}"></a>`)
+      .addTo(map)
+      .getElement()
+      .querySelector("a").textContent = feature.properties.name || "Untitled";
+  });
+}
+
+// Checkboxes under a map that show or hide one of its layers; the choice is remembered per
+// page kind, and a layer with data-url is fetched the first time it is shown.
+function initLayerToggles(map, page) {
+  document.querySelectorAll("input[data-layer]").forEach((input) => {
+    const layer = input.dataset.layer;
+    const key = `velotheque.layer.${page}.${layer}`;
+    const saved = storage(key);
+    if (saved !== null) input.checked = saved === "1";
+    let fetched = !input.dataset.url;
+    const apply = async () => {
+      if (input.checked && !fetched) {
+        fetched = true;
+        const response = await fetch(input.dataset.url);
+        if (response.ok) map.getSource(layer)?.setData(await response.json());
+      }
+      map.setLayoutProperty(layer, "visibility", input.checked ? "visible" : "none");
+    };
+    input.addEventListener("change", () => {
+      storage(key, input.checked ? "1" : "0");
+      apply();
     });
+    if (map.loaded()) apply();
+    else map.once("load", apply);
   });
 }
 
@@ -499,11 +723,24 @@ function initLightbox() {
   if (!dialog) return;
   const links = [...document.querySelectorAll("[data-lightbox]")];
   const image = dialog.querySelector("img");
+  const video = dialog.querySelector("video");
   let current = 0;
   function show(i) {
     current = (i + links.length) % links.length;
-    image.src = links[current].href;
-    image.alt = links[current].querySelector("img")?.alt || "";
+    const link = links[current];
+    const isVideo = link.dataset.lightbox === "video";
+    video.pause();
+    image.hidden = isVideo;
+    video.hidden = !isVideo;
+    if (isVideo) {
+      image.removeAttribute("src");
+      video.src = link.href;
+      video.play().catch(() => {});
+    } else {
+      video.removeAttribute("src");
+      image.src = link.href;
+      image.alt = link.querySelector("img")?.alt || "";
+    }
   }
   links.forEach((link, i) =>
     link.addEventListener("click", (e) => {
@@ -513,9 +750,13 @@ function initLightbox() {
     }),
   );
   dialog.addEventListener("click", (e) => {
-    if (e.target === dialog || e.target === image) dialog.close();
+    const step = e.target.closest("[data-step]");
+    if (step) show(current + Number(step.dataset.step));
+    else if (e.target === dialog || e.target === image) dialog.close();
   });
+  dialog.addEventListener("close", () => video.pause());
   dialog.addEventListener("keydown", (e) => {
+    if (e.target === video) return;
     if (e.key === "ArrowRight") show(current + 1);
     if (e.key === "ArrowLeft") show(current - 1);
   });
@@ -527,5 +768,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initRoute();
   initTagSuggestions();
   initBulkEdit();
+  initResizers();
   initLightbox();
 });

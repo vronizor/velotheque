@@ -1,13 +1,16 @@
+import json
 from dataclasses import dataclass
 
 from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column, select, text
 
 from velotheque.exportrow import gear_id, sport_type
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
+from velotheque.geo import elevation_profile
 from velotheque.tables import (
     ROUTE_SOURCES,
     activity,
     activity_photo,
+    activity_track,
     activity_track_simplified,
     bike,
     raw_gpx_file,
@@ -181,6 +184,20 @@ def ride_track_geojson(conn: Connection, activity_id: int) -> str | None:
             s.c.activity_id == activity_id, s.c.level == "detail"
         )
     ).scalar()
+
+
+def ride_profile(conn: Connection, activity_id: int) -> str | None:
+    t = activity_track
+    found = conn.execute(
+        select(t.c.distance_m, t.c.altitude_m, func.ST_AsGeoJSON(t.c.geometry, 6)).where(
+            t.c.activity_id == activity_id
+        )
+    ).first()
+    if found is None or not found.altitude_m:
+        return None
+    coords = [c for line in json.loads(found[2])["coordinates"] for c in line]
+    profile = elevation_profile(found.distance_m, found.altitude_m, coords)
+    return json.dumps(profile, separators=(",", ":")) if profile else None
 
 
 FACETS = ("type", "bike", "photos")
@@ -424,6 +441,21 @@ def ride_routes(conn: Connection, activity_id: int):
         .where(o.c.activity_id == activity_id)
         .order_by(o.c.overlap_m.desc())
     ).all()
+
+
+def ride_routes_geojson(conn: Connection, activity_id: int) -> str:
+    """The routes a ride follows (overview lines; races run to thousands of km)."""
+    s = route_simplified
+    return _feature_collection(
+        conn,
+        route.join(s, and_(s.c.route_id == route.c.id, s.c.level == "overview")).join(
+            route_ride_overlap, route_ride_overlap.c.route_id == route.c.id
+        ),
+        route.c.id,
+        route.c.name,
+        s.c.geometry,
+        [route_ride_overlap.c.activity_id == activity_id],
+    )
 
 
 def route_name(conn: Connection, route_id: int) -> str | None:

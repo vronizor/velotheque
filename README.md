@@ -153,7 +153,9 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 - Both are measured on the route's distinct roads: an out-and-back stretch is covered by riding it once.
 - They update when a route is imported and when a sync brings new rides; `rebuild-derived` recomputes everything (about 20 s for 88 routes × 341 rides on the Mac).
 
-**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Tick routes in the list to set their source or add/remove tags in one go. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue and lists the rides on it, with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides (collapsed under "On routes").
+**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Tick routes in the list to set their source or add/remove tags in one go. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue and lists the rides on it, with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides (collapsed under "On routes") and can draw them on its map ("show the routes it rides"); the route page can hide its rides the same way.
+
+**Ride page:** the map can be resized by dragging the bar under it. The elevation chart is built from the altitude and distance streams, with about 1,000 samples. Hovering it shows km, altitude and grade, and a dot on the map. The grade is averaged over ±100 m so GPS noise doesn't show as 30% ramps. Hovering the track on the map moves the chart cursor. Videos open in the same lightbox as photos (‹ › or the arrow keys).
 
 ## Search and filters
 
@@ -163,6 +165,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 - **Selecting a ride:** click a row in the list (anywhere but its name) to highlight that ride and zoom the map to it, with all other rides still drawn. Click the row again to deselect. Clicking the name opens the ride page.
 - **Search** (`q`) matches the start of every word in the name and description, ignoring accents (`valencia` finds “València”). Names also get a typo-tolerant match (`galibeir` finds “Galibier”). There's no language stemming, because titles mix French, Spanish, Catalan and English.
 - **Reset filters** clears every filter but keeps the Rides / Routes / Both choice.
+- **Map / list split:** drag the bar above the list (or focus it and use ↑/↓) to give the map more or less room; the browser remembers it. Phones keep the stacked layout.
 - **Map area:**
   - **Rectangle**: click two opposite corners.
   - **Polygon**: click the corners, then click the first point again to close it.

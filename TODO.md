@@ -58,9 +58,12 @@ Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-
 - Notes: the Strava export has near-duplicate routes (same name, slightly different files) → both kept; delete one in the UI. Names come from the GPX (some are file-ish codes): editable on the route page.
 
 ## After M5: Strava-style ride page (study done 2026-10-16)
-- [ ] Videos inside the lightbox carousel (S)
-- [ ] Resizable ride map (S); map/table splitter on Explore, off on phones (S)
-- [ ] Elevation chart + synced hover (km, altitude, grade smoothed ±100 m), hand-written SVG, downsampled profile endpoint (M)
+- [x] Videos inside the lightbox carousel (tiles show the first frame + ▶; ‹ › buttons, arrow keys; pauses on close)
+- [x] Resizable ride and route maps (drag bar or ↑/↓, remembered per page kind); map/list splitter on Explore (`--map-share`, 15–85%), off on phones
+- [x] Elevation chart + synced hover (km, altitude, grade over ±100 m), hand-written SVG, ~1000 samples embedded in the page (≈30 KB); hovering the map track moves the chart cursor. Positions come from the track points (all 341 local tracks line up with their streams; fallback interpolates along the line)
+- [x] Owner request: "show the routes it rides" on the ride map (fetched on first tick from `/rides/{id}/routes.geojson`, overview lines) and "rides" toggle on the route map; both remembered
+- [ ] Idea (owner): link Strava routes to their Strava page. The export has no route id (`routes.csv` = name + `routes/N.gpx`, empty `<link>` in the GPX) and sync doesn't touch routes, so this needs `GET /athletes/{id}/routes` (needs the `read_all` scope for private routes; check the current token's scope) and a match on name + distance
+- [ ] Descriptions show Strava mentions raw (`[strava://athletes/…]`); render them as the name only
 - [!] Photo markers: none of the 517 photos has EXIF GPS or capture time (Strava strips them; media.csv has only filename + caption). Also a spec non-goal. Only lead: undocumented API photo endpoint
 
 ## Owner feedback (2026-10-15)

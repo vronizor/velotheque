@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy import Connection
 
 from velotheque import queries
@@ -20,10 +21,18 @@ def ride_page(activity_id: int, request: Request, conn: Connection = Depends(get
         {
             "ride": ride,
             "track": queries.ride_track_geojson(conn, activity_id),
+            "profile": queries.ride_profile(conn, activity_id),
             "photos": queries.ride_photos(conn, activity_id),
             "routes": queries.ride_routes(conn, activity_id),
             "map_style_url": get_settings().map_style_url,
         },
+    )
+
+
+@router.get("/rides/{activity_id}/routes.geojson")
+def ride_routes_geojson(activity_id: int, conn: Connection = Depends(get_conn)):
+    return Response(
+        queries.ride_routes_geojson(conn, activity_id), media_type="application/geo+json"
     )
 
 
