@@ -40,7 +40,7 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends"]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

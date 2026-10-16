@@ -1,21 +1,59 @@
 <section id="results" class="results"
-  data-geojson="{{ geojson_url }}" data-bbox="{{ bbox }}"
-  hx-get="/?{{ state.to_query(sort=sort|string) }}" hx-trigger="syncFinished from:body" hx-swap="outerHTML">
+  data-geojson="{{ geojson_url }}" data-routes-geojson="{{ routes_geojson_url }}" data-bbox="{{ bbox }}"
+  hx-get="{{ link() }}" hx-trigger="syncFinished from:body" hx-swap="outerHTML">
   <input type="hidden" name="sort" value="{{ sort }}" form="filters">
+  <input type="hidden" name="rsort" value="{{ rsort }}" form="filters">
   <div class="totals">
-    <span><strong>{{ totals.count | whole }}</strong> rides</span>
-    <span><strong>{{ totals.distance_m | km }}</strong> km</span>
-    <span><strong>{{ totals.elevation_gain_m | whole }}</strong> m+</span>
-    <span><strong>{{ totals.moving_time_s | hours }}</strong> h</span>
+    {% if show_routes %}
+      <span class="totals-routes"><strong>{{ route_totals.count | whole }}</strong> routes · <strong>{{ route_totals.distance_m | km }}</strong> km · <strong>{{ route_totals.elevation_gain_m | whole }}</strong> m+</span>
+    {% endif %}
+    {% if show_rides %}
+      <span><strong>{{ totals.count | whole }}</strong> rides</span>
+      <span><strong>{{ totals.distance_m | km }}</strong> km</span>
+      <span><strong>{{ totals.elevation_gain_m | whole }}</strong> m+</span>
+      <span><strong>{{ totals.moving_time_s | hours }}</strong> h</span>
+    {% endif %}
+    {% if show_routes %}<a class="totals-action" href="/routes/import">+ Import GPX</a>{% endif %}
   </div>
   <div class="table-wrap">
-    <table class="rides">
+    {% if show_routes %}
+    <table class="routes" data-entity="routes">
+      <thead>
+        <tr>
+          {% for key, label in route_sort_columns %}
+            <th class="col-{{ key }}">
+              <a hx-get="{{ link(rsort=rsort.toggled(key)) }}" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
+                 href="{{ link(rsort=rsort.toggled(key)) }}">
+                {{ label }}{% if rsort.key == key %} {{ "↓" if rsort.descending else "↑" }}{% endif %}
+              </a>
+            </th>
+          {% endfor %}
+          <th>Tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in route_rows %}
+          <tr data-id="{{ r.id }}" data-entity="routes">
+            <td class="col-name"><a href="/routes/{{ r.id }}">{{ r.name }}</a>{% if r.source == "strava" %} <span class="tag">Strava</span>{% endif %}</td>
+            <td class="col-distance num">{{ r.distance_m | km }}</td>
+            <td class="col-elevation num">{{ r.elevation_gain_m | whole if r.elevation_gain_m is not none else "–" }}</td>
+            <td class="col-coverage num">{{ r.coverage_fraction | percent }}</td>
+            <td class="col-tags">{% for t in r.tags %}<span class="tag">{{ t }}</span> {% endfor %}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="muted empty">No routes match these filters.{% if not state.active %} <a href="/routes/import">Import GPX files</a>.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if show_rides %}
+    <table class="rides" data-entity="rides">
       <thead>
         <tr>
           {% for key, label in sort_columns %}
             <th class="col-{{ key }}">
-              <a hx-get="/?{{ state.to_query(sort=sort.toggled(key)) }}" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
-                 href="/?{{ state.to_query(sort=sort.toggled(key)) }}">
+              <a hx-get="{{ link(sort=sort.toggled(key)) }}" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
+                 href="{{ link(sort=sort.toggled(key)) }}">
                 {{ label }}{% if sort.key == key %} {{ "↓" if sort.descending else "↑" }}{% endif %}
               </a>
             </th>
@@ -25,7 +63,7 @@
       </thead>
       <tbody>
         {% for r in rows %}
-          <tr data-id="{{ r.id }}">
+          <tr data-id="{{ r.id }}" data-entity="rides">
             <td class="col-date">{{ r.start_at_local | when("%Y-%m-%d") }}</td>
             <td class="col-name"><a href="/rides/{{ r.id }}">{{ r.name or "Untitled" }}</a> <span class="tag">{{ r.type }}</span></td>
             <td class="col-distance num">{{ r.distance_m | km }}</td>
@@ -39,11 +77,13 @@
       </tbody>
     </table>
     {% if totals.count > rows|length %}
-      <p class="muted more">Showing the first {{ rows|length }} of {{ totals.count | whole }}. Narrow the filters to see the rest.</p>
+      <p class="muted more">Showing the first {{ rows|length }} of {{ totals.count | whole }} rides. Narrow the filters to see the rest.</p>
+    {% endif %}
     {% endif %}
   </div>
 </section>
 {% if oob %}
+  {% include "_filters_head.html" %}
   {% include "_facets.html" %}
   {% include "_area.html" %}
 {% endif %}

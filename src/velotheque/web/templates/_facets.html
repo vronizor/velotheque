@@ -1,4 +1,34 @@
 <div id="facets" {% if oob %}hx-swap-oob="true"{% endif %}>
+  {% if on_route %}
+  <fieldset>
+    <legend>On route</legend>
+    {% for raw, value, name in on_route %}
+      <label class="check"><input type="checkbox" name="overlaps_route" value="{{ raw }}" form="filters" checked> <a href="/routes/{{ value[0] }}">{{ name or "Route " ~ value[0] }}</a> <span class="count">≥ {{ value[1] | round | int }}%</span></label>
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+
+  {% if show_routes %}
+  <fieldset>
+    <legend>Route tags</legend>
+    {% for t in tags %}
+      {% set n = route_facets.tag.get(t, 0) %}
+      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="tag" value="{{ t }}" form="filters" {% if state.has('tag', t) %}checked{% endif %}> {{ t }} <span class="count">{{ n }}</span></label>
+    {% else %}
+      <p class="muted small">No tags yet. Add them on a route's page.</p>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Route source</legend>
+    {% for value, label in source_labels.items() %}
+      {% set n = route_facets.source.get(value, 0) %}
+      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="source" value="{{ value }}" form="filters" {% if state.has('source', value) %}checked{% endif %}> {{ label }} <span class="count">{{ n }}</span></label>
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+
+  {% if show_rides %}
   <fieldset>
     <legend>Type</legend>
     {% for t in types %}
@@ -24,4 +54,5 @@
     {% set n = facets.photos.get(True, 0) %}
     <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="photos" value="1" form="filters" {% if state.get('photos') is sameas true %}checked{% endif %}> With photos <span class="count">{{ n }}</span></label>
   </fieldset>
+  {% endif %}
 </div>

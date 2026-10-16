@@ -5,6 +5,8 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
+from velotheque.tables import ROUTE_SOURCES
+
 MIGRATIONS = Path(__file__).parent / "migrations"
 
 
@@ -45,20 +47,22 @@ def cmd_sync(args) -> None:
 def cmd_normalize(args) -> None:
     from velotheque.config import get_settings
     from velotheque.db import get_engine
-    from velotheque.derive import derive_activities
+    from velotheque.derive import derive_activities, derive_routes
     from velotheque.normalize import normalize_all
     from velotheque.photos import materialize_photos
+    from velotheque.routes import normalize_routes
     from velotheque.tables import activity
 
     settings = get_settings()
     with get_engine().begin() as conn:
         ids = normalize_all(conn, settings, force_track=args.force_tracks)
         derive_activities(conn, ids)
+        derive_routes(conn, normalize_routes(conn))
         rows = conn.execute(
             activity.select().with_only_columns(activity.c.id, activity.c.source_id)
         ).all()
         photos = sum(materialize_photos(conn, r.id, r.source_id, settings) for r in rows)
-    print(f"normalized {len(ids)} activities, {photos} photos")
+    print(f"normalized {len(ids)} activities, {photos} photos, routes")
 
 
 def cmd_import_export(args) -> None:
@@ -89,6 +93,40 @@ def cmd_backup_status(args) -> None:
     with get_engine().begin() as conn:
         record(conn, ok=args.ok, error=args.error, details=details)
     print("recorded backup", "success" if args.ok else f"failure: {args.error}")
+
+
+def _print_report(report) -> None:
+    for route_id, name in report.created:
+        print(f"  + route #{route_id}  {name}")
+    for filename, reason in report.skipped:
+        print(f"  - {filename}: {reason}")
+    print(f"{len(report.created)} routes created, {len(report.skipped)} files skipped")
+
+
+def cmd_routes_import(args) -> None:
+    from velotheque.db import get_engine
+    from velotheque.routes import import_files
+
+    paths = [Path(p) for p in args.files]
+    files = [(str(p), p.read_bytes()) for p in paths]
+    name = args.name
+    if args.merge and not name:
+        parents = {p.resolve().parent.name for p in paths}
+        name = parents.pop() if len(parents) == 1 else None
+    with get_engine().begin() as conn:
+        report = import_files(
+            conn, files, merge=args.merge, name=name, source=args.source, tags=args.tag
+        )
+    _print_report(report)
+
+
+def cmd_routes_import_export(args) -> None:
+    from velotheque.db import get_engine
+    from velotheque.routes import import_export_routes
+
+    with get_engine().begin() as conn:
+        report = import_export_routes(conn, Path(args.zip), tags=args.tag)
+    _print_report(report)
 
 
 def cmd_rebuild_derived(args) -> None:
@@ -122,6 +160,26 @@ def main(argv: list[str] | None = None) -> None:
     outcome.add_argument("--error", help="the run failed with this message")
     status.add_argument("--details", help="JSON object with counts, sizes, file names")
     status.set_defaults(func=cmd_backup_status)
+    routes = sub.add_parser("routes", help="GPX route library").add_subparsers(
+        dest="routes_command", required=True
+    )
+    route_import = routes.add_parser("import", help="import GPX/TCX/FIT files as routes")
+    route_import.add_argument("files", nargs="+", help="route files (.gpx, .tcx, .fit, .gz)")
+    route_import.add_argument(
+        "--merge", action="store_true", help="make one route from all files (race stages)"
+    )
+    route_import.add_argument("--name", help="route name (default: from the file or folder)")
+    route_import.add_argument(
+        "--source", default="file", choices=ROUTE_SOURCES, help="where the route comes from"
+    )
+    route_import.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
+    route_import.set_defaults(func=cmd_routes_import)
+    route_export = routes.add_parser(
+        "import-export", help="import the routes drawn on Strava from a bulk export zip"
+    )
+    route_export.add_argument("zip", help="path to export_XXXX.zip")
+    route_export.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
+    route_export.set_defaults(func=cmd_routes_import_export)
     sub.add_parser("rebuild-derived", help="drop and rebuild derived tables").set_defaults(
         func=cmd_rebuild_derived
     )

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Import routes · Vélothèque{% endblock %}
+{% block content %}
+<main class="settings">
+  <p class="muted"><a href="/?entity=routes">← Routes</a></p>
+  <h1>Import routes</h1>
+  {% if error %}<p class="notice">{{ error }}</p>{% endif %}
+  {% if report %}
+    <section class="notice">
+      <p><strong>{{ report.created|length }}</strong> route{{ "" if report.created|length == 1 else "s" }} created{% if report.skipped %}, {{ report.skipped|length }} file{{ "" if report.skipped|length == 1 else "s" }} skipped{% endif %}.</p>
+      <ul class="plain-list small">
+        {% for id, name in report.created %}<li>+ <a href="/routes/{{ id }}">{{ name }}</a></li>{% endfor %}
+        {% for filename, reason in report.skipped %}<li class="muted">– {{ filename }}: {{ reason }}</li>{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+  <form class="route-form" method="post" action="/routes/import" enctype="multipart/form-data">
+    <label>GPX files <span class="muted small">(.gpx, .tcx, .fit, also gzipped; several at once)</span>
+      <input type="file" name="files" multiple required accept=".gpx,.tcx,.fit,.gz"></label>
+    <label class="check"><input type="checkbox" name="merge" value="true"> Merge the files into one route (stages of a race)</label>
+    <label>Name <span class="muted small">(needed when merging; otherwise taken from each file)</span>
+      <input type="text" name="name" maxlength="200"></label>
+    <label>Source
+      <select name="source">
+        {% for value, label in sources.items() %}<option value="{{ value }}"{% if value == "file" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></label>
+    <label>Tags <span class="muted small">(comma-separated, applied to every imported route)</span>
+      <input type="text" name="tags" id="route-tags" autocomplete="off"></label>
+    {% if tags %}
+      <p class="tag-suggestions small">{% for t in tags %}<button type="button" class="tag" data-add-tag="{{ t }}">+ {{ t }}</button> {% endfor %}</p>
+    {% endif %}
+    <button type="submit">Import</button>
+  </form>
+  <p class="muted small">The files are stored as they are and never changed; a file that is already part of a route is skipped. Routes drawn on Strava come in with <code>velotheque routes import-export &lt;zip&gt;</code>.</p>
+</main>
+{% endblock %}

@@ -163,3 +163,68 @@ def test_backup_indicator_turns_red_after_48h(client, db):
     stale = client.get("/backup/indicator").text
     assert "backup-stale" in stale and "Backup 2 d ago" in stale
     assert "older than 48 h" in client.get("/settings").text
+
+
+ROUTE_GPX = (
+    b'<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/1">'
+    b"<metadata><name>Sierra leg</name></metadata><trk><trkseg>"
+    b'<trkpt lat="48.85" lon="2.35"><ele>100</ele></trkpt>'
+    b'<trkpt lat="48.8745" lon="2.3745"><ele>300</ele></trkpt>'
+    b"</trkseg></trk></gpx>"
+)
+
+
+def _upload(client, *files, **form):
+    return client.post(
+        "/routes/import",
+        files=[("files", (name, content, "application/gpx+xml")) for name, content in files],
+        data=form,
+        follow_redirects=False,
+    )
+
+
+def test_route_import_page_edit_download_delete(client, db):
+    response = _upload(client, ("sierra.gpx", ROUTE_GPX), tags="race, Sierra")
+    assert response.status_code == 303
+    route_url = response.headers["location"]
+    page = client.get(route_url)
+    assert "Sierra leg" in page.text and 'id="route-map"' in page.text
+    assert "Show these 2 rides in Explore" in page.text
+
+    saved = client.post(
+        route_url, data={"name": "Renamed", "tags": "gravel,  race ", "notes": "nice"}
+    )
+    assert "Renamed" in saved.text and "Saved" in saved.text
+
+    file_link = page.text.split(f'href="{route_url}/files/')[1].split('"')[0]
+    download = client.get(f"{route_url}/files/{file_link}")
+    assert download.content == ROUTE_GPX and "sierra.gpx" in download.headers["content-disposition"]
+
+    again = _upload(client, ("sierra.gpx", ROUTE_GPX))
+    assert again.status_code == 200 and "already in route" in again.text
+
+    ride_id = client.get("/explore/rides.geojson").json()["features"][0]["id"]
+    assert "Renamed" in client.get(f"/rides/{ride_id}").text
+
+    assert client.post(f"{route_url}/delete", follow_redirects=False).status_code == 303
+    assert client.get(route_url).status_code == 404
+
+
+def test_merge_needs_a_name(client):
+    response = _upload(client, ("a.gpx", ROUTE_GPX), ("b.gpx", ROUTE_GPX + b" "), merge="true")
+    assert "Give the merged route a name" in response.text
+
+
+def test_explore_routes_and_both(client):
+    _upload(client, ("sierra.gpx", ROUTE_GPX), tags="race")
+    routes = client.get("/?entity=routes&tag=race")
+    assert "Sierra leg" in routes.text and "Col du Galibier" not in routes.text
+    assert 'name="entity" value="routes"' in routes.text
+    both = client.get("/?entity=both")
+    assert "Sierra leg" in both.text and "Col du Galibier" in both.text
+    collection = client.get("/explore/routes.geojson?tag=race").json()
+    assert [f["properties"]["name"] for f in collection["features"]] == ["Sierra leg"]
+    assert client.get("/explore/routes.geojson?tag=none").json()["features"] == []
+    on_route = client.get(f"/?overlaps_route={collection['features'][0]['id']}:0")
+    assert "Sierra leg" in on_route.text and "Ride 2" in on_route.text
+    assert client.get("/routes/import").status_code == 200

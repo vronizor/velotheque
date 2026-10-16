@@ -32,6 +32,13 @@ def hours(seconds) -> str:
     return f"{(seconds or 0) / 3600:,.0f}".replace(",", " ")
 
 
+def percent(fraction) -> str:
+    if fraction is None:
+        return "–"
+    value = fraction * 100
+    return f"{value:.0f}%" if value >= 1 or value == 0 else "<1%"
+
+
 def when(value: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
     return value.strftime(fmt) if value else ""
 
@@ -47,4 +54,6 @@ def ago(delta) -> str:
     return f"{minutes // (24 * 60)} d"
 
 
-templates.env.filters.update(km=km, whole=whole, duration=duration, hours=hours, when=when, ago=ago)
+templates.env.filters.update(
+    percent=percent, km=km, whole=whole, duration=duration, hours=hours, when=when, ago=ago
+)

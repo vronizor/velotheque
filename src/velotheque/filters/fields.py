@@ -1,13 +1,14 @@
 import re
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import exists, func, or_
+from sqlalchemy import exists, func, or_, select
 
 from velotheque.filters.registry import Entity, Field, register
 from velotheque.geo import decode_polyline, polygon_wkt
-from velotheque.tables import activity_track
+from velotheque.tables import ROUTE_SOURCES, activity_track, route_coverage, route_ride_overlap
 
 RIDES = frozenset({Entity.RIDES})
+ROUTES = frozenset({Entity.ROUTES})
 RIDES_AND_ROUTES = frozenset({Entity.RIDES, Entity.ROUTES})
 NO_BIKE = "none"
 
@@ -170,5 +171,94 @@ register(
         RIDES_AND_ROUTES,
         _area,
         lambda t, v: _intersects(t, func.ST_MakeValid(func.ST_GeomFromText(v[0], 4326))),
+    )
+)
+
+
+def _tag(value: str) -> str:
+    if len(value) > 40:
+        raise ValueError("tag too long")
+    return value
+
+
+def _source(value: str) -> str:
+    if value not in ROUTE_SOURCES:
+        raise ValueError(value)
+    return value
+
+
+DEFAULT_OVERLAP_PCT = 30.0
+
+
+def _overlap(value: str) -> tuple[int, float]:
+    route_id, _, pct = value.partition(":")
+    percent = _non_negative(pct) if pct else DEFAULT_OVERLAP_PCT
+    if percent > 100:
+        raise ValueError(value)
+    return int(route_id), percent
+
+
+def _overlaps_where(t, values):
+    o = route_ride_overlap
+    return or_(
+        *(
+            exists().where(
+                o.c.activity_id == t.c.id,
+                o.c.route_id == route_id,
+                o.c.overlap_fraction >= percent / 100,
+            )
+            for route_id, percent in values
+        )
+    )
+
+
+def _coverage(t):
+    fraction = (
+        select(route_coverage.c.coverage_fraction)
+        .where(route_coverage.c.route_id == t.c.id)
+        .correlate_except(route_coverage)
+    )
+    return func.coalesce(fraction.scalar_subquery(), 0)
+
+
+register(
+    Field(
+        "tag",
+        "Tag",
+        ROUTES,
+        _tag,
+        lambda t, v: t.c.tags.overlap(v),
+        multi=True,
+        facet=lambda t: func.unnest(t.c.tags),
+    )
+)
+register(
+    Field(
+        "source",
+        "Source",
+        ROUTES,
+        _source,
+        lambda t, v: t.c.source.in_(v),
+        multi=True,
+        facet=lambda t: t.c.source,
+    )
+)
+register(Field("overlaps_route", "On route", RIDES, _overlap, _overlaps_where, multi=True))
+register(
+    Field(
+        "coverage_min",
+        "Min ridden (%)",
+        ROUTES,
+        _non_negative,
+        lambda t, v: _coverage(t) >= v[0] / 100,
+    )
+)
+register(
+    Field(
+        "coverage_max",
+        "Max ridden (%)",
+        ROUTES,
+        _non_negative,
+        lambda t, v: _coverage(t) <= v[0] / 100,
     )
 )

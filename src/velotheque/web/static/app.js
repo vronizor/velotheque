@@ -1,6 +1,7 @@
 "use strict";
 
-const COLORS = { ride: "#D63A2A", highlight: "#161412" };
+const COLORS = { ride: "#D63A2A", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412" };
+const SOURCES = ["routes", "rides"];
 const ACTIVE = [
   "any",
   ["boolean", ["feature-state", "hover"], false],
@@ -73,7 +74,7 @@ function initExplore() {
   addAttribution(map);
   let highlighted = null;
   let selected = null;
-  let ridesData = null;
+  const data = { rides: null, routes: null };
   let skipFit = false;
   let forceFit = false;
   let draw = null;
@@ -83,21 +84,33 @@ function initExplore() {
     return document.getElementById("results");
   }
 
-  function setHighlight(id, scroll) {
-    if (highlighted !== null) {
-      map.setFeatureState({ source: "rides", id: highlighted }, { hover: false });
-      document.querySelector(`#results tr[data-id="${highlighted}"]`)?.classList.remove("hl");
+  function same(a, b) {
+    return a && b && a.source === b.source && a.id === b.id;
+  }
+
+  function rowOf(target) {
+    return target && document.querySelector(`#results tr[data-entity="${target.source}"][data-id="${target.id}"]`);
+  }
+
+  function featureState(target, state) {
+    if (target && map.getSource(target.source)) map.setFeatureState({ source: target.source, id: target.id }, state);
+  }
+
+  function setHighlight(target, scroll) {
+    if (highlighted) {
+      featureState(highlighted, { hover: false });
+      rowOf(highlighted)?.classList.remove("hl");
     }
-    highlighted = id;
-    if (id === null) return;
-    map.setFeatureState({ source: "rides", id }, { hover: true });
-    const row = document.querySelector(`#results tr[data-id="${id}"]`);
+    highlighted = target;
+    if (!target) return;
+    featureState(target, { hover: true });
+    const row = rowOf(target);
     row?.classList.add("hl");
     if (scroll) row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
-  function featureBounds(id) {
-    const feature = ridesData?.features.find((f) => f.id === id);
+  function featureBounds(target) {
+    const feature = data[target.source]?.features.find((f) => f.id === target.id);
     if (!feature) return null;
     let [w, s, e, n] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const line of feature.geometry.coordinates) {
@@ -111,18 +124,18 @@ function initExplore() {
     return Number.isFinite(w) ? [[w, s], [e, n]] : null;
   }
 
-  // A selected ride stays highlighted (and the map zooms to it) while every other ride
-  // remains drawn, so it can be seen in context.
-  function setSelected(id, zoom) {
-    if (selected !== null) {
-      map.setFeatureState({ source: "rides", id: selected }, { selected: false });
-      document.querySelector(`#results tr[data-id="${selected}"]`)?.classList.remove("selected");
+  // A selected ride or route stays highlighted (and the map zooms to it) while everything
+  // else remains drawn, so it can be seen in context.
+  function setSelected(target, zoom) {
+    if (selected) {
+      featureState(selected, { selected: false });
+      rowOf(selected)?.classList.remove("selected");
     }
-    selected = id;
-    if (id === null) return;
-    map.setFeatureState({ source: "rides", id }, { selected: true });
-    document.querySelector(`#results tr[data-id="${id}"]`)?.classList.add("selected");
-    const bounds = zoom ? featureBounds(id) : null;
+    selected = target;
+    if (!target) return;
+    featureState(target, { selected: true });
+    rowOf(target)?.classList.add("selected");
+    const bounds = zoom ? featureBounds(target) : null;
     if (bounds) map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 600 });
   }
 
@@ -168,16 +181,26 @@ function initExplore() {
     document.querySelectorAll(".map-tools button").forEach((b) => b.classList.remove("active"));
   }
 
+  async function fetchCollection(url) {
+    if (!url) return { type: "FeatureCollection", features: [] };
+    const response = await fetch(url);
+    return response.json();
+  }
+
   async function load(fit) {
     const section = results();
     if (!section) return;
     map.getSource("areas")?.setData(activeAreas());
-    const response = await fetch(section.dataset.geojson);
-    const data = await response.json();
+    const [rides, routes] = await Promise.all([
+      fetchCollection(section.dataset.geojson),
+      fetchCollection(section.dataset.routesGeojson),
+    ]);
     highlighted = null;
     selected = null;
-    ridesData = data;
-    map.getSource("rides").setData(data);
+    data.rides = rides;
+    data.routes = routes;
+    map.getSource("rides").setData(rides);
+    map.getSource("routes").setData(routes);
     const bbox = JSON.parse(section.dataset.bbox || "null");
     if (fit && (forceFit || !skipFit) && bbox) map.fitBounds(boundsOf(bbox), { padding: 40, maxZoom: 14, duration: 0 });
     skipFit = false;
@@ -195,6 +218,19 @@ function initExplore() {
         "line-color": ["case", ACTIVE, COLORS.highlight, COLORS.ride],
         "line-opacity": ["case", ACTIVE, 1, 0.35],
         "line-width": ["case", ACTIVE, 4, 2],
+      },
+    });
+    map.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "routes",
+      type: "line",
+      source: "routes",
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": ["case", ACTIVE, COLORS.highlight, COLORS.route],
+        "line-opacity": ["case", ACTIVE, 1, 0.8],
+        "line-width": ["case", ACTIVE, 4, 2.5],
+        "line-dasharray": [2, 1.5],
       },
     });
     map.addSource("areas", { type: "geojson", data: activeAreas() });
@@ -269,30 +305,32 @@ function initExplore() {
       if (e.key === "Escape") stopDrawing();
     });
 
-    map.on("mousemove", "rides", (e) => {
-      map.getCanvas().style.cursor = "pointer";
-      const id = e.features[0]?.id;
-      if (id !== undefined && id !== highlighted) setHighlight(id, false);
-    });
-    map.on("mouseleave", "rides", () => {
-      map.getCanvas().style.cursor = "";
-      setHighlight(null);
-    });
-    map.on("click", "rides", (e) => {
-      if (draw && draw.getMode() !== "static") return;
-      const id = e.features[0]?.id;
-      if (id !== undefined) {
-        setHighlight(id, true);
-        setSelected(id, false);
-      }
-    });
-    map.on("dblclick", "rides", (e) => {
-      const id = e.features[0]?.id;
-      if (id !== undefined) {
-        e.preventDefault();
-        window.location.href = `/rides/${id}`;
-      }
-    });
+    for (const source of SOURCES) {
+      map.on("mousemove", source, (e) => {
+        map.getCanvas().style.cursor = "pointer";
+        const id = e.features[0]?.id;
+        if (id !== undefined && !same(highlighted, { source, id })) setHighlight({ source, id }, false);
+      });
+      map.on("mouseleave", source, () => {
+        map.getCanvas().style.cursor = "";
+        setHighlight(null);
+      });
+      map.on("click", source, (e) => {
+        if (draw && draw.getMode() !== "static") return;
+        const id = e.features[0]?.id;
+        if (id !== undefined) {
+          setHighlight({ source, id }, true);
+          setSelected({ source, id }, false);
+        }
+      });
+      map.on("dblclick", source, (e) => {
+        const id = e.features[0]?.id;
+        if (id !== undefined) {
+          e.preventDefault();
+          window.location.href = `/${source}/${id}`;
+        }
+      });
+    }
   });
 
   document.addEventListener("click", (e) => {
@@ -302,13 +340,13 @@ function initExplore() {
     }
     const row = e.target.closest?.("#results tr[data-id]");
     if (!row || e.target.closest("a, button, input, label") || !map.getSource("rides")) return;
-    const id = Number(row.dataset.id);
-    setSelected(selected === id ? null : id, selected !== id);
+    const target = { source: row.dataset.entity, id: Number(row.dataset.id) };
+    setSelected(same(selected, target) ? null : target, !same(selected, target));
   });
 
   document.addEventListener("mouseover", (e) => {
     const row = e.target.closest?.("#results tr[data-id]");
-    if (row && map.getSource("rides")) setHighlight(Number(row.dataset.id), false);
+    if (row && map.getSource("rides")) setHighlight({ source: row.dataset.entity, id: Number(row.dataset.id) }, false);
   });
 
   document.body.addEventListener("htmx:afterSwap", (e) => {
@@ -348,6 +386,87 @@ function initRide() {
   document.body.addEventListener("syncFinished", () => window.location.reload());
 }
 
+function lineBounds(collections) {
+  let [w, s, e, n] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const geometry of collections) {
+    const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates];
+    for (const line of lines) {
+      for (const [x, y] of line) {
+        w = Math.min(w, x);
+        s = Math.min(s, y);
+        e = Math.max(e, x);
+        n = Math.max(n, y);
+      }
+    }
+  }
+  return Number.isFinite(w) ? [[w, s], [e, n]] : null;
+}
+
+function initRoute() {
+  const el = document.getElementById("route-map");
+  if (!el) return;
+  const line = JSON.parse(el.dataset.line);
+  const covered = JSON.parse(el.dataset.covered);
+  const rides = JSON.parse(el.dataset.rides);
+  const map = new maplibregl.Map({ container: el, style: el.dataset.style, center: [2.5, 46.5], zoom: 5 });
+  addAttribution(map);
+  const bounds = lineBounds([line]);
+  if (bounds) map.fitBounds(bounds, { padding: 40, duration: 0 });
+  map.on("load", () => {
+    map.addSource("rides", { type: "geojson", data: rides });
+    map.addLayer({
+      id: "rides",
+      type: "line",
+      source: "rides",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": COLORS.ride, "line-opacity": 0.35, "line-width": 2 },
+    });
+    map.addSource("route", { type: "geojson", data: line });
+    map.addLayer({
+      id: "route",
+      type: "line",
+      source: "route",
+      layout: { "line-join": "round" },
+      paint: { "line-color": COLORS.route, "line-width": 3, "line-dasharray": [2, 1.5] },
+    });
+    if (covered) {
+      map.addSource("covered", { type: "geojson", data: covered });
+      map.addLayer({
+        id: "covered",
+        type: "line",
+        source: "covered",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": COLORS.covered, "line-width": 5 },
+      });
+    }
+    map.on("mousemove", "rides", () => (map.getCanvas().style.cursor = "pointer"));
+    map.on("mouseleave", "rides", () => (map.getCanvas().style.cursor = ""));
+    map.on("click", "rides", (e) => {
+      const feature = e.features[0];
+      if (!feature) return;
+      new maplibregl.Popup({ closeButton: false })
+        .setLngLat(e.lngLat)
+        .setHTML(`<a href="/rides/${feature.id}"></a>`)
+        .addTo(map)
+        .getElement()
+        .querySelector("a").textContent = feature.properties.name || "Untitled";
+    });
+  });
+}
+
+function initTagSuggestions() {
+  const input = document.getElementById("route-tags");
+  if (!input) return;
+  document.querySelectorAll("[data-add-tag]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const tags = input.value.split(",").map((t) => t.trim()).filter(Boolean);
+      if (!tags.some((t) => t.toLowerCase() === button.dataset.addTag.toLowerCase())) tags.push(button.dataset.addTag);
+      input.value = tags.join(", ");
+      button.remove();
+    }),
+  );
+}
+
 function initLightbox() {
   const dialog = document.getElementById("lightbox");
   if (!dialog) return;
@@ -378,5 +497,7 @@ function initLightbox() {
 document.addEventListener("DOMContentLoaded", () => {
   initExplore();
   initRide();
+  initRoute();
+  initTagSuggestions();
   initLightbox();
 });

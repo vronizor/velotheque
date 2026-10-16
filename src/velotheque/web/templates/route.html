@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ route.name }} · Vélothèque{% endblock %}
+{% block body_class %}page-route{% endblock %}
+{% block content %}
+<main class="ride route-page">
+  <div class="ride-head">
+    <div>
+      <p class="muted"><a href="/?entity=routes">← Routes</a></p>
+      <h1>{{ route.name }}</h1>
+      <p class="muted">
+        <span class="tag">{{ sources[route.source] }}</span>
+        {% for t in route.tags %}<a class="tag" href="/?entity=routes&amp;tag={{ t | urlencode }}">{{ t }}</a> {% endfor %}
+        · added {{ route.created_at | when("%Y-%m-%d") }}
+      </p>
+    </div>
+    {% if rides %}
+    <div class="ride-actions">
+      <a class="button" href="/?overlaps_route={{ route.id }}:0">Show these {{ rides|length }} rides in Explore</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if message %}<p class="notice">{{ message }}</p>{% endif %}
+
+  <dl class="stats">
+    <div><dt>Distance</dt><dd>{{ route.distance_m | km }} km</dd></div>
+    <div><dt>Elevation</dt><dd>{% if route.elevation_gain_m is not none %}{{ route.elevation_gain_m | whole }} m{% else %}–{% endif %}</dd></div>
+    <div><dt>Ridden</dt><dd>{{ route.coverage_fraction | percent }}{% if route.covered_m %} <span class="muted small">{{ route.covered_m | km }} km</span>{% endif %}</dd></div>
+    <div><dt>Rides on it</dt><dd>{{ rides|length }}</dd></div>
+  </dl>
+
+  {% if map.line %}
+    <div id="route-map" class="ride-map" data-style="{{ map_style_url }}"
+         data-line='{{ map.line }}' data-covered='{{ map.covered or "null" }}' data-rides='{{ map.rides }}'></div>
+    <p class="muted small legend"><span class="key key-route"></span> route <span class="key key-covered"></span> ridden (within 30 m of a ride) <span class="key key-ride"></span> rides</p>
+  {% else %}
+    <p class="muted no-track">No track points in this route's files.</p>
+  {% endif %}
+
+  <div class="route-columns">
+    <section>
+      <h2>Rides on this route</h2>
+      {% if rides %}
+      <table class="rides">
+        <thead><tr><th>Date</th><th>Name</th><th class="col-distance">On route</th><th class="col-distance">Of route</th></tr></thead>
+        <tbody>
+          {% for r in rides %}
+            <tr>
+              <td>{{ r.start_at_local | when("%Y-%m-%d") }}</td>
+              <td class="col-name"><a href="/rides/{{ r.id }}">{{ r.name or "Untitled" }}</a></td>
+              <td class="num">{{ r.overlap_m | km }} km</td>
+              <td class="num">{{ r.overlap_fraction | percent }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <p class="muted">No ride follows this route for more than 100 m.</p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Details</h2>
+      <form class="route-form" method="post" action="/routes/{{ route.id }}">
+        <label>Name <input type="text" name="name" value="{{ route.name }}" maxlength="200" required></label>
+        <label>Tags <span class="muted small">(comma-separated)</span>
+          <input type="text" name="tags" id="route-tags" value="{{ route.tags | join(', ') }}" autocomplete="off"></label>
+        {% if tags %}
+          <p class="tag-suggestions small">{% for t in tags if t not in route.tags %}<button type="button" class="tag" data-add-tag="{{ t }}">+ {{ t }}</button> {% endfor %}</p>
+        {% endif %}
+        <label>Notes <textarea name="notes" rows="5">{{ route.notes or "" }}</textarea></label>
+        <button type="submit">Save</button>
+      </form>
+
+      <h2>GPX files</h2>
+      <ul class="plain-list small">
+        {% for f in files %}
+          <li><a href="/routes/{{ route.id }}/files/{{ f.id }}">{{ f.filename }}</a> <span class="muted">{{ (f.size / 1024) | round | int }} KB</span></li>
+        {% endfor %}
+      </ul>
+
+      <form method="post" action="/routes/{{ route.id }}/delete" class="danger-zone"
+            onsubmit="return confirm('Delete the route “{{ route.name | e }}”? Its GPX files stay stored and can be imported again.')">
+        <button type="submit" class="button secondary">Delete route</button>
+      </form>
+    </section>
+  </div>
+</main>
+{% endblock %}

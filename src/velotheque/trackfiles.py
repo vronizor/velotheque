@@ -4,7 +4,7 @@ import warnings
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import fitdecode
 
@@ -184,13 +184,61 @@ def parse_fit(data: bytes) -> Track:
 PARSERS = {".gpx": parse_gpx, ".tcx": parse_tcx, ".fit": parse_fit}
 
 
-def parse_track_file(path: Path) -> Track:
-    data = path.read_bytes()
-    suffixes = path.suffixes
-    if suffixes and suffixes[-1] == ".gz":
+def _unpack(data: bytes, filename: str) -> tuple[bytes, str]:
+    suffixes = PurePath(filename).suffixes
+    if suffixes and suffixes[-1].lower() == ".gz":
         data = gzip.decompress(data)
         suffixes = suffixes[:-1]
-    parser = PARSERS.get(suffixes[-1].lower() if suffixes else "")
-    if parser is None:
-        raise ValueError(f"unsupported track file {path.name}")
-    return parser(data)
+    suffix = suffixes[-1].lower() if suffixes else ""
+    if suffix not in PARSERS:
+        raise ValueError(f"unsupported track file {filename}")
+    return data, suffix
+
+
+def parse_track_file(path: Path) -> Track:
+    data, suffix = _unpack(path.read_bytes(), path.name)
+    return PARSERS[suffix](data)
+
+
+Point = tuple[float, float, float | None]
+
+
+@dataclass
+class RouteData:
+    name: str | None
+    kind: str | None
+    segments: list[list[Point]]
+
+
+def parse_route_gpx(data: bytes) -> RouteData:
+    """Each <trkseg> or <rte> stays its own piece: planned routes are often sparse, and
+    combined race files hold one track per stage, so nothing is joined or gap-split."""
+    root = ET.fromstring(data.lstrip())
+    names, kind, segments = [], None, []
+    for element in root.iter():
+        tag = _local(element.tag)
+        if tag in ("trk", "rte"):
+            names.append(_text(element, "name"))
+            kind = kind or _text(element, "type")
+        if tag in ("trkseg", "rte"):
+            points = [
+                (float(p.get("lat")), float(p.get("lon")), _float(_text(p, "ele")))
+                for p in element
+                if _local(p.tag) in ("trkpt", "rtept")
+            ]
+            if len(points) >= 2:
+                segments.append(points)
+    # A file of several tracks (one per stage) is named by its metadata or its filename, not
+    # after its first stage.
+    name = _text(root, "metadata", "name") or (names[0] if len(names) == 1 else None)
+    return RouteData(name, kind, segments)
+
+
+def parse_route_file(data: bytes, filename: str) -> RouteData:
+    data, suffix = _unpack(data, filename)
+    if suffix == ".gpx":
+        return parse_route_gpx(data)
+    track = PARSERS[suffix](data)
+    pairs = zip(track.latlng, track.altitude_m, strict=True)
+    points = [(lat, lng, alt) for (lat, lng), alt in pairs]
+    return RouteData(None, None, [points] if len(points) >= 2 else [])

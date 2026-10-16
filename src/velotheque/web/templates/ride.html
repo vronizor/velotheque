@@ -37,6 +37,19 @@
     <section class="description">{{ ride.description }}</section>
   {% endif %}
 
+  {% if routes %}
+    <section class="ride-routes">
+      <h2>On routes <span class="muted">{{ routes|length }}</span></h2>
+      <ul class="plain-list">
+        {% for r in routes %}
+          <li><a href="/routes/{{ r.id }}">{{ r.name }}</a>
+            <span class="muted">· {{ r.overlap_m | km }} km of it ({{ r.overlap_fraction | percent }})</span>
+            {% for t in r.tags %}<span class="tag">{{ t }}</span> {% endfor %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
   {% if photos %}
     <section class="gallery" aria-label="Photos">
       <h2>Photos <span class="muted">{{ photos|length }}</span></h2>

@@ -1,6 +1,6 @@
 # Vélothèque — TODO
 
-Plan: Milestone 1 (Skeleton + sync). Spec: `velotheque-spec.md`.
+Plan: Milestone 5 (Routes); M4 deferred until the SSD move. Spec: `velotheque-spec.md`.
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Blockers / waiting on the owner
@@ -33,6 +33,33 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Backup: first run (531 photos), restore test from Drive OK, nightly timer, reboot test OK
 - [ ] Move data to the SSD before Milestone 4 (see Pi deployment notes)
 
+## M5 — Routes (started 2026-10-16; M4 deferred until the SSD is in)
+Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-for-point copies of the .gpx); stage files of a race can be merged into one route; Strava export routes imported with source=strava so they can be filtered out; Strava-style ride page work comes right after M5. No status (the library is inspiration, not a to-do list): free-form tags instead (filter + counts; `mtb` auto-set from Strava GPX type); source = strava | gpx_studio | file; "ridden" is shown from coverage, never set by hand.
+- [x] VERIFY real data: export has 77 route GPX (55 cycling, 12 MTB, 10 running → skipped); library has 4 files with `<rte>`/`<rtept>` (not `<trk>`), combined race files with 5–21 tracks (distance must not bridge them: 5,189 vs 2,184 km), sparse planned routes (no gap splitting), up to 100k points
+- [x] Prototype overlap on real rides: ST_Intersection dissolves a route's exactly repeated out-and-back parts, and UTM round trips stop pieces from merging (coverage > 100%) → buffer built in UTM per ride, intersection in route coordinates, fractions over the route's dissolved length, pieces < 100 m (road crossings) dropped
+- [x] Elevation gain from GPX: 10 m hysteresis, calibrated on 330 real rides vs Strava (median ratio 0.997, p10–p90 0.69–1.10)
+- [x] Migration 0005: raw_gpx_file (bytes in the DB → in the nightly dump), route (+ search, tags text[]), route_file (merged stages), route_simplified (overview 50 m: routes run to 1000s of km), route_ride_overlap (+ covered pieces), route_coverage
+- [x] Route parser (trk/trkseg/rte; TCX/FIT as one piece; multi-track files named by metadata or file name), normalize routes from raw
+- [x] CLI `routes import FILE… [--merge] [--tag] [--source] [--name]`, `routes import-export ZIP`
+- [x] Derived: overlaps + coverage, updated on route import and on ride sync, in rebuild-derived. Coverage from hair-thin buffers around each ride's covered pieces (polygon union of ride buffers took 37 s of 43); rides segmentized before buffering so long straight segments match
+- [x] Filters: tag, source, overlaps_route (`id` = ≥30%, `id:pct`), coverage_min/max; q/dist/elev/bbox/area for routes
+- [x] Explore: Rides | Routes | Both, dashed route layer, route list + totals + tag/source facets; toggle + reset refreshed with results
+- [x] Route page: map with ridden parts, coverage, overlapping rides, edit name/tags/notes, GPX download, delete
+- [x] Import form (several files, optional merge)
+- [x] Visible "Reset filters" button (owner request; keeps the Rides/Routes toggle)
+- [x] Ride page: routes it rides
+- [x] Tests: parser, elevation, idempotent import + merge order, export routes, overlap on synthetic geometries (half, offset, crossing, out-and-back, merged coverage, sync update, rebuild), filters + facets, web (95 total)
+- [x] Real data locally: 36 library routes (5 races merged from stages) + 52 Strava routes (15 byte-identical duplicates skipped, 10 running skipped); import ~0.5 s/route, rebuild 18 s on the Mac; routes GeoJSON 0.62 MB gz; headless check of Explore (routes/both/tag filter/selection), route pages, import form, ride page, phone
+- [x] README
+- [ ] Deploy to the Pi + import there (owner)
+- Notes: the Strava export has near-duplicate routes (same name, slightly different files) → both kept; delete one in the UI. Names come from the GPX (some are file-ish codes): editable on the route page.
+
+## After M5: Strava-style ride page (study done 2026-10-16)
+- [ ] Videos inside the lightbox carousel (S)
+- [ ] Resizable ride map (S); map/table splitter on Explore, off on phones (S)
+- [ ] Elevation chart + synced hover (km, altitude, grade smoothed ±100 m), hand-written SVG, downsampled profile endpoint (M)
+- [!] Photo markers: none of the 517 photos has EXIF GPS or capture time (Strava strips them; media.csv has only filename + caption). Also a spec non-goal. Only lead: undocumented API photo endpoint
+
 ## Owner feedback (2026-10-15)
 - [x] Clicking a list row (not the name) selects the ride and zooms the map to it; other rides stay drawn; click again to deselect; the name still opens the ride page
 - [x] "↺ Reset map" next to the drawing tools: clears the map area + selection, zooms back to all results
@@ -51,9 +78,6 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Tests: retention selection, manifest diff, status recording, indicator
 - [x] Local dry run: 49 MB dump → scratch DB in ~5 s, row counts match; record-status success/failure paths → indicator
 - [x] README + push
-
-## M5 notes (gathered early)
-- GPX library lives on Proton Drive at `/my-files/gpx-library`: 16 .gpx + 15 .geojson twins + 6 subfolders (multi-stage events?). Decide: GPX only, or GeoJSON too? Pull it with proton-drive for testing when M5 starts.
 
 ## M2 (pulled forward): bulk export import
 - [x] `velotheque import-export <zip>`: raw_export_activity (migration 0002), track files copied to DATA_DIR/strava-export/<export>/

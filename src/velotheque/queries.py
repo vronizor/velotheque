@@ -9,6 +9,12 @@ from velotheque.tables import (
     activity_photo,
     activity_track_simplified,
     bike,
+    raw_gpx_file,
+    route,
+    route_coverage,
+    route_file,
+    route_ride_overlap,
+    route_simplified,
     saved_view,
 )
 
@@ -23,23 +29,34 @@ DEFAULT_SORT = "-date"
 LIST_LIMIT = 500
 
 
+ROUTE_SORTS = {
+    "name": func.lower(route.c.name),
+    "distance": route.c.distance_m,
+    "elevation": route.c.elevation_gain_m,
+    "coverage": route_coverage.c.coverage_fraction,
+    "added": route.c.created_at,
+}
+DEFAULT_ROUTE_SORT = "name"
+DESCENDING_FIRST = {"date", "distance", "elevation", "duration", "coverage", "added"}
+
+
 @dataclass(frozen=True)
 class Sort:
     key: str
     descending: bool
 
     @classmethod
-    def parse(cls, value: str | None) -> "Sort":
-        value = value or DEFAULT_SORT
+    def parse(cls, value: str | None, sorts=SORTS, default: str = DEFAULT_SORT) -> "Sort":
+        value = value or default
         key = value.lstrip("-")
-        if key not in SORTS:
-            return cls.parse(DEFAULT_SORT)
+        if key not in sorts:
+            return cls.parse(default, sorts, default)
         return cls(key, value.startswith("-"))
 
     def toggled(self, key: str) -> str:
         if key == self.key:
             return key if self.descending else f"-{key}"
-        return f"-{key}" if key in ("date", "distance", "elevation", "duration") else key
+        return f"-{key}" if key in DESCENDING_FIRST else key
 
     def __str__(self) -> str:
         return f"-{self.key}" if self.descending else self.key
@@ -71,15 +88,20 @@ def ride_rows(conn: Connection, state: FilterState, sort: Sort, limit: int = LIS
     return conn.execute(query).all()
 
 
+def _extent(geometry):
+    extent = func.ST_Extent(geometry)
+    return select(
+        func.ST_XMin(extent), func.ST_YMin(extent), func.ST_XMax(extent), func.ST_YMax(extent)
+    )
+
+
+def _bbox(row) -> list | None:
+    return list(row) if row[0] is not None else None
+
+
 def ride_totals(conn: Connection, state: FilterState):
-    extent = func.ST_Extent(activity_track_simplified.c.geometry)
     bbox_query = (
-        select(
-            func.ST_XMin(extent),
-            func.ST_YMin(extent),
-            func.ST_XMax(extent),
-            func.ST_YMax(extent),
-        )
+        _extent(activity_track_simplified.c.geometry)
         .select_from(
             activity.join(
                 activity_track_simplified,
@@ -99,28 +121,38 @@ def ride_totals(conn: Connection, state: FilterState):
             func.coalesce(func.sum(activity.c.moving_time_s), 0).label("moving_time_s"),
         ).where(*_where(state))
     ).one()
-    bbox = conn.execute(bbox_query).one()
-    return totals, (list(bbox) if bbox[0] is not None else None)
+    return totals, _bbox(conn.execute(bbox_query).one())
 
 
-def rides_geojson(conn: Connection, state: FilterState, level: str = "overview") -> str:
-    s = activity_track_simplified
+def _feature_collection(conn: Connection, query_from, feature_id, name, geometry, where) -> str:
     feature = func.json_build_object(
         "type",
         "Feature",
         "id",
-        activity.c.id,
+        feature_id,
         "properties",
-        func.json_build_object("name", activity.c.name),
+        func.json_build_object("name", name),
         "geometry",
-        cast(func.ST_AsGeoJSON(s.c.geometry, 5), JSON),
+        cast(func.ST_AsGeoJSON(geometry, 5), JSON),
     )
     features = conn.execute(
         select(cast(func.coalesce(func.json_agg(feature), literal_column("'[]'::json")), Text))
-        .select_from(activity.join(s, and_(s.c.activity_id == activity.c.id, s.c.level == level)))
-        .where(*_where(state))
+        .select_from(query_from)
+        .where(*where)
     ).scalar_one()
     return '{"type":"FeatureCollection","features":' + features + "}"
+
+
+def rides_geojson(conn: Connection, state: FilterState, level: str = "overview") -> str:
+    s = activity_track_simplified
+    return _feature_collection(
+        conn,
+        activity.join(s, and_(s.c.activity_id == activity.c.id, s.c.level == level)),
+        activity.c.id,
+        activity.c.name,
+        s.c.geometry,
+        _where(state),
+    )
 
 
 def ride_types(conn: Connection) -> list[str]:
@@ -213,3 +245,171 @@ def export_status(conn: Connection, sport_types) -> dict:
             for r in unmatched
         ],
     }
+
+
+def _route_where(state: FilterState):
+    return build_where(state, Entity.ROUTES, route)
+
+
+def _with_coverage():
+    return route.outerjoin(route_coverage, route_coverage.c.route_id == route.c.id)
+
+
+def route_rows(conn: Connection, state: FilterState, sort: Sort, limit: int = LIST_LIMIT):
+    column = ROUTE_SORTS[sort.key]
+    order = column.desc().nulls_last() if sort.descending else column.asc().nulls_last()
+    return conn.execute(
+        select(
+            route.c.id,
+            route.c.name,
+            route.c.source,
+            route.c.tags,
+            route.c.distance_m,
+            route.c.elevation_gain_m,
+            route_coverage.c.coverage_fraction,
+        )
+        .select_from(_with_coverage())
+        .where(*_route_where(state))
+        .order_by(order, route.c.id)
+        .limit(limit)
+    ).all()
+
+
+def route_totals(conn: Connection, state: FilterState):
+    totals = conn.execute(
+        select(
+            func.count().label("count"),
+            func.coalesce(func.sum(route.c.distance_m), 0).label("distance_m"),
+            func.coalesce(func.sum(route.c.elevation_gain_m), 0).label("elevation_gain_m"),
+        ).where(*_route_where(state))
+    ).one()
+    bbox = conn.execute(
+        _extent(route_simplified.c.geometry)
+        .select_from(
+            route.join(
+                route_simplified,
+                and_(
+                    route_simplified.c.route_id == route.c.id,
+                    route_simplified.c.level == "overview",
+                ),
+            )
+        )
+        .where(*_route_where(state))
+    ).one()
+    return totals, _bbox(bbox)
+
+
+def routes_geojson(conn: Connection, state: FilterState, level: str = "overview") -> str:
+    s = route_simplified
+    return _feature_collection(
+        conn,
+        route.join(s, and_(s.c.route_id == route.c.id, s.c.level == level)),
+        route.c.id,
+        route.c.name,
+        s.c.geometry,
+        _route_where(state),
+    )
+
+
+ROUTE_FACETS = ("tag", "source")
+
+
+def route_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
+    return {p: facet_counts(conn, state, Entity.ROUTES, route, p) for p in ROUTE_FACETS}
+
+
+def all_tags(conn: Connection) -> list[str]:
+    tags = select(func.unnest(route.c.tags).label("tag")).distinct().subquery()
+    return conn.execute(select(tags.c.tag).order_by(func.lower(tags.c.tag))).scalars().all()
+
+
+def route_detail(conn: Connection, route_id: int):
+    return conn.execute(
+        select(
+            route,
+            route_coverage.c.coverage_fraction,
+            route_coverage.c.covered_m,
+            route_coverage.c.length_m.label("ridable_m"),
+        )
+        .select_from(_with_coverage())
+        .where(route.c.id == route_id)
+    ).first()
+
+
+def route_files(conn: Connection, route_id: int):
+    return conn.execute(
+        select(
+            raw_gpx_file.c.id,
+            raw_gpx_file.c.filename,
+            func.length(raw_gpx_file.c.content).label("size"),
+        )
+        .join(route_file, route_file.c.raw_gpx_file_id == raw_gpx_file.c.id)
+        .where(route_file.c.route_id == route_id)
+        .order_by(route_file.c.position)
+    ).all()
+
+
+def route_file_content(conn: Connection, route_id: int, file_id: int):
+    return conn.execute(
+        select(raw_gpx_file.c.filename, raw_gpx_file.c.content)
+        .join(route_file, route_file.c.raw_gpx_file_id == raw_gpx_file.c.id)
+        .where(route_file.c.route_id == route_id, raw_gpx_file.c.id == file_id)
+    ).first()
+
+
+def route_map(conn: Connection, route_id: int) -> dict:
+    """Route (detail), its ridden parts and the overlapping rides, as GeoJSON strings."""
+    s = route_simplified
+    line = conn.execute(
+        select(func.ST_AsGeoJSON(s.c.geometry, 6)).where(
+            s.c.route_id == route_id, s.c.level == "detail"
+        )
+    ).scalar()
+    covered = conn.execute(
+        select(func.ST_AsGeoJSON(route_coverage.c.covered, 6)).where(
+            route_coverage.c.route_id == route_id
+        )
+    ).scalar()
+    a = activity_track_simplified
+    rides = _feature_collection(
+        conn,
+        activity.join(a, and_(a.c.activity_id == activity.c.id, a.c.level == "overview")).join(
+            route_ride_overlap, route_ride_overlap.c.activity_id == activity.c.id
+        ),
+        activity.c.id,
+        activity.c.name,
+        a.c.geometry,
+        [route_ride_overlap.c.route_id == route_id],
+    )
+    return {"line": line, "covered": covered, "rides": rides}
+
+
+def route_rides(conn: Connection, route_id: int):
+    o = route_ride_overlap
+    return conn.execute(
+        select(
+            activity.c.id,
+            activity.c.name,
+            activity.c.start_at_local,
+            activity.c.distance_m,
+            o.c.overlap_m,
+            o.c.overlap_fraction,
+        )
+        .join(o, o.c.activity_id == activity.c.id)
+        .where(o.c.route_id == route_id)
+        .order_by(o.c.overlap_fraction.desc(), activity.c.start_at_local.desc())
+    ).all()
+
+
+def ride_routes(conn: Connection, activity_id: int):
+    o = route_ride_overlap
+    return conn.execute(
+        select(route.c.id, route.c.name, route.c.tags, o.c.overlap_m, o.c.overlap_fraction)
+        .join(o, o.c.route_id == route.c.id)
+        .where(o.c.activity_id == activity_id)
+        .order_by(o.c.overlap_m.desc())
+    ).all()
+
+
+def route_name(conn: Connection, route_id: int) -> str | None:
+    return conn.execute(select(route.c.name).where(route.c.id == route_id)).scalar()

@@ -6,23 +6,24 @@
     <form id="filters" class="filters" action="/" method="get"
           hx-get="/" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
           hx-trigger="change delay:150ms, submit, input delay:400ms from:#q">
-      <div class="filters-head">
-        <h2>Filters</h2>
-        {% if state.active %}<a href="/" class="reset">Reset</a>{% endif %}
-      </div>
+      {% if entity != "rides" %}<input type="hidden" name="entity" value="{{ entity }}">{% endif %}
+      {% include "_filters_head.html" %}
 
-      <input id="q" class="search" type="search" name="q" placeholder="Search names and descriptions"
+      <input id="q" class="search" type="search" name="q" placeholder="Search {{ 'names, descriptions, notes' if show_routes else 'names and descriptions' }}"
              value="{{ state.raw.get('q', [''])[0] }}" autocomplete="off" aria-label="Search">
 
+      {% if show_rides %}
       <fieldset>
         <legend>Date</legend>
         <label>From <input type="date" name="after" value="{{ state.raw.get('after', [''])[0] }}"></label>
         <label>To <input type="date" name="before" value="{{ state.raw.get('before', [''])[0] }}"></label>
       </fieldset>
+      {% endif %}
 
       {% include "_facets.html" %}
 
-      {% for legend, lo, hi, step in [("Distance (km)", "dist_min", "dist_max", "1"), ("Elevation (m)", "elev_min", "elev_max", "10"), ("Moving time (h)", "dur_min", "dur_max", "0.25")] %}
+      {% set ranges = [("Distance (km)", "dist_min", "dist_max", "1", true), ("Elevation (m)", "elev_min", "elev_max", "10", true), ("Moving time (h)", "dur_min", "dur_max", "0.25", show_rides), ("Ridden (% of route)", "coverage_min", "coverage_max", "5", show_routes)] %}
+      {% for legend, lo, hi, step, shown in ranges if shown %}
       <fieldset class="range">
         <legend>{{ legend }}</legend>
         <input type="number" name="{{ lo }}" min="0" step="{{ step }}" placeholder="min" value="{{ state.raw.get(lo, [''])[0] }}" aria-label="{{ legend }} minimum">
@@ -56,7 +57,7 @@
     <div class="map-tools" role="toolbar" aria-label="Map tools">
       <button type="button" data-tool="rectangle" title="Draw a rectangle, then click twice">▭ Rectangle</button>
       <button type="button" data-tool="polygon" title="Click to add points, click the first point to close">⬠ Polygon</button>
-      <button type="button" data-tool="view" title="Keep only rides crossing the visible map">Filter to this view</button>
+      <button type="button" data-tool="view" title="Keep only what crosses the visible map">Filter to this view</button>
       <button type="button" data-tool="reset" title="Clear the map area and the selected ride, and zoom back to all results">↺ Reset map</button>
     </div>
   </section>

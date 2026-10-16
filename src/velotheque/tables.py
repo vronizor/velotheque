@@ -36,10 +36,17 @@ metadata = MetaData(
 
 TZ = DateTime(timezone=True)
 MULTILINE = Geometry("MULTILINESTRING", srid=4326, spatial_index=False)
+# geoalchemy2 copies a column's nullability onto its type, so nullable columns need their own.
+OPTIONAL_MULTILINE = Geometry("MULTILINESTRING", srid=4326, spatial_index=False, nullable=True)
 SEARCH_TSV = (
     "to_tsvector('simple'::regconfig, "
     "vt_unaccent(coalesce(name, '') || ' ' || coalesce(description, '')))"
 )
+ROUTE_SEARCH_TSV = (
+    "to_tsvector('simple'::regconfig, "
+    "vt_unaccent(coalesce(name, '') || ' ' || coalesce(notes, '')))"
+)
+ROUTE_SOURCES = ("strava", "gpx_studio", "file")
 
 
 def _now():
@@ -107,6 +114,16 @@ raw_export_activity = Table(
     Column("payload_sha256", LargeBinary, nullable=False),
     _now(),
     Index(None, "source_id", "id"),
+)
+
+raw_gpx_file = Table(
+    "raw_gpx_file",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("sha256", LargeBinary, nullable=False, unique=True),
+    Column("filename", Text, nullable=False),
+    Column("content", LargeBinary, nullable=False),
+    _now(),
 )
 
 # Operational
@@ -231,6 +248,38 @@ activity_track = Table(
     Index("ix_activity_track_geometry", "geometry", postgresql_using="gist"),
 )
 
+# Routes: name, source, notes, tags and the route_file list are curated; geometry, distance
+# and elevation are normalized from the raw files (`normalize` recomputes them).
+
+route = Table(
+    "route",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("source", Text, nullable=False, server_default="file"),
+    Column("notes", Text),
+    Column("tags", ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")),
+    Column("created_at", TZ, nullable=False, server_default=func.now()),
+    Column("geometry", OPTIONAL_MULTILINE),
+    Column("distance_m", Double, nullable=False, server_default=text("0")),
+    Column("elevation_gain_m", Double),
+    Column("search_tsv", TSVECTOR, Computed(ROUTE_SEARCH_TSV, persisted=True)),
+    CheckConstraint(f"source IN {ROUTE_SOURCES}", name="source"),
+    Index("ix_route_geometry", "geometry", postgresql_using="gist"),
+    Index("ix_route_search_tsv", "search_tsv", postgresql_using="gin"),
+    Index("ix_route_tags", "tags", postgresql_using="gin"),
+)
+
+route_file = Table(
+    "route_file",
+    metadata,
+    Column("route_id", Integer, ForeignKey("route.id", ondelete="CASCADE")),
+    Column("position", SmallInteger),
+    Column("raw_gpx_file_id", BigInteger, ForeignKey("raw_gpx_file.id"), nullable=False),
+    PrimaryKeyConstraint("route_id", "position"),
+    UniqueConstraint("raw_gpx_file_id"),
+)
+
 # Derived: safe to truncate and rebuild
 
 activity_track_simplified = Table(
@@ -242,6 +291,39 @@ activity_track_simplified = Table(
     PrimaryKeyConstraint("activity_id", "level"),
     CheckConstraint("level IN ('overview', 'detail')", name="level"),
     Index("ix_activity_track_simplified_geometry", "geometry", postgresql_using="gist"),
+)
+
+route_simplified = Table(
+    "route_simplified",
+    metadata,
+    Column("route_id", Integer, ForeignKey("route.id", ondelete="CASCADE")),
+    Column("level", Text),
+    Column("geometry", MULTILINE, nullable=False),
+    PrimaryKeyConstraint("route_id", "level"),
+    CheckConstraint("level IN ('overview', 'detail')", name="level"),
+    Index("ix_route_simplified_geometry", "geometry", postgresql_using="gist"),
+)
+
+route_ride_overlap = Table(
+    "route_ride_overlap",
+    metadata,
+    Column("route_id", Integer, ForeignKey("route.id", ondelete="CASCADE")),
+    Column("activity_id", BigInteger, ForeignKey("activity.id", ondelete="CASCADE")),
+    Column("overlap_m", Double, nullable=False),
+    Column("overlap_fraction", Double, nullable=False),
+    Column("covered", MULTILINE, nullable=False),
+    PrimaryKeyConstraint("route_id", "activity_id"),
+    Index(None, "activity_id"),
+)
+
+route_coverage = Table(
+    "route_coverage",
+    metadata,
+    Column("route_id", Integer, ForeignKey("route.id", ondelete="CASCADE"), primary_key=True),
+    Column("length_m", Double, nullable=False),
+    Column("covered_m", Double, nullable=False),
+    Column("coverage_fraction", Double, nullable=False),
+    Column("covered", OPTIONAL_MULTILINE),
 )
 
 backup_status = Table(
@@ -268,4 +350,4 @@ saved_view = Table(
     UniqueConstraint("entity", "name"),
 )
 
-DERIVED_TABLES = (activity_track_simplified,)
+DERIVED_TABLES = (activity_track_simplified, route_simplified, route_ride_overlap, route_coverage)

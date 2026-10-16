@@ -4,13 +4,16 @@
 
 A self-hosted explorer for my own Strava cycling history, running on a Raspberry Pi. It's single-user and read-only towards Strava.
 
-Milestones 1–3 (this version) cover:
+Milestones 1–3 and 5 (this version) cover:
 - Strava OAuth and a resumable **Sync now** (activities, details, streams)
 - the Strava bulk export import, with photos
 - normalized rides and tracks
 - an **Explore** page: a map, list and totals; filters for date, type, bike, distance, elevation, duration, photos and text search, with live counts next to each option; drawing a rectangle or polygon on the map, or "Filter to this view"; and saved views
 - a **Ride** page with a photo gallery
 - nightly backups of the database and photos to Proton Drive, a tested restore, and a backup indicator in the header
+- a **route library**: GPX import (upload form and CLI, race stages merged into one route), tags, how much of each route you've ridden, and routes on the Explore map
+
+Milestone 4 (components and maintenance) comes later.
 
 The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress is tracked in [`TODO.md`](TODO.md).
 
@@ -26,10 +29,10 @@ The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress i
 
 | Layer | Tables | Notes |
 |---|---|---|
-| Raw | `raw_strava_*` | Append-only. A row is only added when the payload changed. |
-| Normalized | `activity`, `activity_track`, `bike` | Rebuilt from raw with `velotheque normalize` |
-| Derived | `activity_track_simplified` | Rebuilt with `velotheque rebuild-derived` |
-| Curated | — | Arrives in later milestones and is the only irreplaceable data |
+| Raw | `raw_strava_*`, `raw_export_activity`, `raw_gpx_file` | Append-only. A row is only added when the payload changed; GPX files are kept byte for byte, de-duplicated by hash. |
+| Normalized | `activity`, `activity_track`, `bike`; `route` geometry, km, m+ | Rebuilt from raw with `velotheque normalize` |
+| Derived | `activity_track_simplified`, `route_simplified`, `route_ride_overlap`, `route_coverage` | Rebuilt with `velotheque rebuild-derived` |
+| Curated | `saved_view`; `route` name, source, tags, notes and its `route_file` list | Hand-entered, irreplaceable, in the nightly backup |
 
 ## Setup on the Pi
 
@@ -127,6 +130,30 @@ Photos and videos are copied to `$VELOTHEQUE_DATA_DIR/photos/<strava activity id
 
 Strava's API has no documented endpoint that lists every photo of an activity. So for rides newer than your export, a sync stores only the **primary** photo, taken from the activity details at no extra API cost. Importing a newer export later fills in the rest. Photos are de-duplicated by Strava's photo UUID, which is also the export's media file name.
 
+## Routes
+
+A route is a GPX file (or several merged ones) that you keep for inspiration. Each one has a name, a source (`strava`, `gpx_studio` or `file`), free-form tags and notes. There's no to-do status: how much of a route you've ridden is computed from your rides.
+
+**Importing.** Use **Routes → + Import GPX** in the app: choose several files at once; tick “Merge” to turn the stages of a race into one route (they're ordered by file name, `s2` before `s10`). Or use the CLI:
+
+```sh
+docker compose exec app velotheque routes import /data/imports/gpx/*.gpx --tag bikepacking
+docker compose exec app velotheque routes import --merge --tag race /data/imports/gpx/some-race/*.gpx
+docker compose exec app velotheque routes import-export /data/imports/export_XXXX.zip   # routes drawn on Strava
+```
+
+- GPX tracks (`<trk>`) and routes (`<rte>`) are read; `.tcx` and `.fit` also work, gzipped or not. Each track in a file stays its own piece, so a file with one track per stage doesn't count the jumps between stages as distance. A file with several tracks is named after its metadata or its file name.
+- The files are stored in the database exactly as uploaded (so the nightly backup has them) and can be downloaded from the route page. A file that is already part of a route is skipped, so imports can be re-run safely; deleting a route keeps its files, and re-importing them brings it back.
+- Strava export routes come in with `source = strava`, so one tick hides them; running routes are skipped and mountain-biking routes get the `mtb` tag.
+- Elevation gain counts a climb once it rises 10 m, which matched Strava's totals on 330 real rides (median ratio 0.997). Files without elevations show “–”.
+
+**Ridden.** A stretch of route counts as ridden when it lies within 30 m of a ride's track; stretches under 100 m (road crossings) are ignored.
+- *Overlap* (per ride): the share of the route that ride covers. *Ridden* (per route): the share covered by all your rides together, counted once.
+- Both are measured on the route's distinct roads: an out-and-back stretch is covered by riding it once.
+- They update when a route is imported and when a sync brings new rides; `rebuild-derived` recomputes everything (about 20 s for 88 routes × 341 rides on the Mac).
+
+**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue and lists the rides on it, with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides.
+
 ## Search and filters
 
 - **One state everywhere:** all filters live in the URL, so every view can be bookmarked, the back button works, and a saved view is just a named query string.
@@ -134,6 +161,7 @@ Strava's API has no documented endpoint that lists every photo of an activity. S
 - **Counts:** the number next to each type, bike or photos option counts every other active filter except that field's own. It shows what ticking that option would give.
 - **Selecting a ride:** click a row in the list (anywhere but its name) to highlight that ride and zoom the map to it, with all other rides still drawn. Click the row again to deselect. Clicking the name opens the ride page.
 - **Search** (`q`) matches the start of every word in the name and description, ignoring accents (`valencia` finds “València”). Names also get a typo-tolerant match (`galibeir` finds “Galibier”). There's no language stemming, because titles mix French, Spanish, Catalan and English.
+- **Reset filters** clears every filter but keeps the Rides / Routes / Both choice.
 - **Map area:**
   - **Rectangle**: click two opposite corners.
   - **Polygon**: click the corners, then click the first point again to close it.
@@ -246,7 +274,9 @@ docker compose exec app velotheque migrate           # apply migrations (also do
 docker compose exec app velotheque sync              # same as the Sync now button
 docker compose exec app velotheque sync --activity 1234567890
 docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
-docker compose exec app velotheque normalize         # rebuild normalized tables from raw (--force-tracks re-parses export files)
+docker compose exec app velotheque routes import FILE… [--merge] [--name N] [--source S] [--tag T]
+docker compose exec app velotheque routes import-export /data/imports/export_XXXX.zip
+docker compose exec app velotheque normalize         # rebuild normalized tables (rides and routes) from raw (--force-tracks re-parses export files)
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables
 docker compose exec app velotheque backup-status --ok|--error MSG   # used by the backup service
 ```

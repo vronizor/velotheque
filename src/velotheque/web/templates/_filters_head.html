@@ -1,0 +1,15 @@
+<div id="filters-head" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <div class="entity-toggle" role="group" aria-label="Show">
+    {% for value, label in [("rides", "Rides"), ("routes", "Routes"), ("both", "Both")] %}
+      <a href="{{ link(entity=None if value == 'rides' else value) }}"{% if entity == value %} class="active" aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="filters-head">
+    <h2>Filters</h2>
+    {% if state.active %}
+      <a href="/{% if entity != 'rides' %}?entity={{ entity }}{% endif %}" class="button secondary reset">Reset filters</a>
+    {% else %}
+      <span class="button secondary reset disabled" aria-disabled="true">Reset filters</span>
+    {% endif %}
+  </div>
+</div>
