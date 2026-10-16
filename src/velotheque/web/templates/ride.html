@@ -68,12 +68,12 @@
     <details class="ride-routes collapsible" data-remember="ride-routes">
       <summary><h2>On routes <span class="muted">{{ routes|length }}</span></h2></summary>
       <table class="rides pairs" data-source="routes">
-        <thead><tr><th>Name</th><th class="col-distance">Route</th><th class="col-distance">On route</th><th class="col-distance">Of route</th></tr></thead>
+        <thead><tr><th>Name</th><th class="col-distance col-length">Route</th><th class="col-distance">On route</th><th class="col-distance">Of route</th></tr></thead>
         <tbody>
           {% for r in routes %}
             <tr data-id="{{ r.id }}" data-piece="/routes/{{ r.id }}/rides/{{ ride.id }}.geojson" title="Hover to see the part of the route this ride covered, click to zoom to it">
               <td class="col-name"><a href="/routes/{{ r.id }}">{{ r.name }}</a>{% for t in r.tags %} <span class="tag">{{ t }}</span>{% endfor %}</td>
-              <td class="num">{{ r.distance_m | km }} km</td>
+              <td class="num col-length">{{ r.distance_m | km }} km</td>
               <td class="num">{{ r.overlap_m | km }} km</td>
               <td class="num">{{ r.overlap_fraction | percent }}</td>
             </tr>

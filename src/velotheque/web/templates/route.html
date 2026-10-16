@@ -58,13 +58,13 @@
       <summary><h2>Rides on this route <span class="muted">{{ rides|length }}</span></h2></summary>
       {% if rides %}
       <table class="rides pairs" data-source="rides">
-        <thead><tr><th>Date</th><th>Name</th><th class="col-distance">Ride</th><th class="col-distance">On route</th><th class="col-distance">Of route</th></tr></thead>
+        <thead><tr><th>Date</th><th>Name</th><th class="col-distance col-length">Ride</th><th class="col-distance">On route</th><th class="col-distance">Of route</th></tr></thead>
         <tbody>
           {% for r in rides %}
             <tr data-id="{{ r.id }}" data-piece="/routes/{{ route.id }}/rides/{{ r.id }}.geojson" title="Hover to see the part of the route this ride covered, click to zoom to it">
               <td>{{ r.start_at_local | when("%Y-%m-%d") }}</td>
               <td class="col-name"><a href="/rides/{{ r.id }}">{{ r.name or "Untitled" }}</a></td>
-              <td class="num">{{ r.distance_m | km }} km</td>
+              <td class="num col-length">{{ r.distance_m | km }} km</td>
               <td class="num">{{ r.overlap_m | km }} km</td>
               <td class="num">{{ r.overlap_fraction | percent }}</td>
             </tr>

@@ -15,7 +15,7 @@
       <tbody>
         {% for u, c in due %}
           <tr>
-            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind and c.kind|lower != c.name|lower %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
             <td>{{ c.bike_name }}</td>
             <td class="col-service">{{ bar(u) }}</td>
             <td>{{ log_button(c.id, u, "/components") }}</td>
@@ -36,7 +36,7 @@
         {% for c in mounted[b.id] %}
           {% set life = lifetime.get(c.id) %}
           <tr>
-            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}{% if c.brand or c.model %}<br><span class="muted small">{{ [c.brand, c.model] | select | join(" ") }}</span>{% endif %}</td>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind and c.kind|lower != c.name|lower %} <span class="tag">{{ c.kind }}</span>{% endif %}{% if c.brand or c.model %}<br><span class="muted small">{{ [c.brand, c.model] | select | join(" ") }}</span>{% endif %}</td>
             <td class="col-since">{{ c.mounted_at | local(zone, "%Y-%m-%d") }}</td>
             <td class="num">{{ ((life.distance_m if life else 0) / 1000) | whole }} km<br><span class="muted small">{{ (life.moving_time_s if life else 0) | hours }} h</span></td>
             <td class="col-service">
@@ -67,7 +67,7 @@
         {% for c in spares %}
           {% set life = lifetime.get(c.id) %}
           <tr>
-            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind and c.kind|lower != c.name|lower %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
             <td class="num">{{ ((life.distance_m if life else 0) / 1000) | whole }} km</td>
             <td class="col-service">{% for u in usage.get(c.id, []) %}<div class="service-row">{{ bar(u) }}</div>{% endfor %}</td>
           </tr>
@@ -86,7 +86,7 @@
         {% for c in retired %}
           {% set life = lifetime.get(c.id) %}
           <tr>
-            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind and c.kind|lower != c.name|lower %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
             <td>{{ c.retired_at | local(zone, "%Y-%m-%d") }}</td>
             <td class="num">{{ ((life.distance_m if life else 0) / 1000) | whole }} km · {{ (life.moving_time_s if life else 0) | hours }} h</td>
           </tr>
@@ -124,7 +124,7 @@
   <section id="no-bike">
     <h2>Rides with no bike <span class="muted">{{ no_bike.count }}</span></h2>
     {% if no_bike.count %}
-      <p class="small">They count toward no component. Set the bike on Strava, then use “Refresh from Strava” on the ride (sync re-reads the last 14 days by itself).
+      <p class="small">They count toward no component. Set the bike on Strava, then use “↻ Refresh” on the ride (sync re-reads the last 14 days by itself).
         <a href="/?bike=none">See them in Explore</a>{% if no_bike.indoor %}, including {{ no_bike.indoor }} indoor ones (not listed here){% endif %}.</p>
       <ul class="plain-list small">
         {% for r in no_bike.latest %}
