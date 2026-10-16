@@ -298,8 +298,22 @@ def test_components_flow(client, db):
         f"/components/{chain}/service-types",
         data={"name": "Wax", "level": 1, "interval_value": 100, "interval_unit": "km"},
     )
+    client.post(
+        f"/components/{chain}/service-types",
+        data={
+            "name": "Check wear",
+            "level": 1,
+            "interval_value": 3000,
+            "interval_unit": "km",
+            "or_days": "365",
+            "description": "Gauge <0.5%>\nhttps://example.com/chain-wear",
+        },
+    )
     page = client.get(f"/components/{chain}")
     assert "KMC X11" in page.text and "132 km / 100 km" in page.text
+    assert "or 365 d, whichever comes first" in page.text
+    assert "Gauge &lt;0.5%&gt;" in page.text
+    assert '<a href="https://example.com/chain-wear" rel="noopener" target="_blank">' in page.text
     overview = client.get("/components")
     assert "Due soon" in overview.text and "status-over" in overview.text
 

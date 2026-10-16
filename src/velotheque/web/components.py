@@ -279,6 +279,8 @@ def service_type_add(
     interval_value: str = Form(...),
     interval_unit: str = Form("km"),
     rides: str = Form("all"),
+    or_days: str = Form(""),
+    description: str = Form(""),
     conn: Connection = Depends(get_conn),
 ):
     _component_or_404(conn, component_id)
@@ -286,7 +288,15 @@ def service_type_add(
         conn,
         _page(component_id, "service"),
         lambda: components.add_service_type(
-            conn, component_id, name, level, interval_value, interval_unit, rides
+            conn,
+            component_id,
+            name,
+            level,
+            interval_value,
+            interval_unit,
+            rides,
+            or_days,
+            description,
         ),
         "Service added",
     )
@@ -301,6 +311,8 @@ def service_type_edit(
     interval_value: str = Form(...),
     interval_unit: str = Form("km"),
     rides: str = Form("all"),
+    or_days: str = Form(""),
+    description: str = Form(""),
     conn: Connection = Depends(get_conn),
 ):
     _component_or_404(conn, component_id)
@@ -308,7 +320,16 @@ def service_type_edit(
         conn,
         _page(component_id, "service"),
         lambda: components.edit_service_type(
-            conn, component_id, service_type_id, name, level, interval_value, interval_unit, rides
+            conn,
+            component_id,
+            service_type_id,
+            name,
+            level,
+            interval_value,
+            interval_unit,
+            rides,
+            or_days,
+            description,
         ),
         "Service saved",
     )

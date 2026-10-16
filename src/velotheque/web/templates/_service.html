@@ -10,10 +10,16 @@
 {%- endmacro %}
 
 {% macro bar(u, label=true) %}
-<span class="service status-{{ u.status }}" title="{{ u.name }} (level {{ u.level }}, {{ scope(u.rides) if u.interval_unit != 'days' else 'calendar time' }}){% if u.reset_at %}: last done {{ u.reset_at | local(zone, '%Y-%m-%d') }}{% endif %}">
+<span class="service status-{{ u.status }}" title="{{ u.name }} (level {{ u.level }}, {{ scope(u.rides) if u.interval_unit != 'days' else 'calendar time' }}){% if u.reset_at %}: last done {{ u.reset_at | local(zone, '%Y-%m-%d') }}{% endif %}{% if u.description %}&#10;{{ u.description }}{% endif %}">
   {% if label %}<span class="service-name">{{ u.name }}</span>{% endif %}
   <span class="meter" aria-hidden="true"><span style="width: {{ [((u.fraction or 0) * 100) | round(1), 100] | min }}%"></span></span>
-  <span class="service-amount">{{ amount(u.used, u.interval_unit) }} / {{ amount(u.interval_value, u.interval_unit) }}{% if u.used is none %} <span class="muted">not mounted yet</span>{% endif %}</span>
+  <span class="service-amount">
+    {%- if u.or_days -%}
+      <span class="{{ 'lead' if not u.by_days }}">{{ amount(u.used, u.interval_unit) }} / {{ amount(u.interval_value, u.interval_unit) }}</span> · <span class="{{ 'lead' if u.by_days }}">{{ amount(u.days, 'days') }} / {{ amount(u.or_days, 'days') }}</span>
+    {%- else -%}
+      {{ amount(u.used, u.interval_unit) }} / {{ amount(u.interval_value, u.interval_unit) }}
+    {%- endif -%}
+    {% if u.used is none %} <span class="muted">not mounted yet</span>{% endif %}</span>
 </span>
 {% endmacro %}
 

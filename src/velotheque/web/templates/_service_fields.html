@@ -3,7 +3,10 @@
 <label>Every <input type="number" name="interval_value" value="{{ '%g' | format(s.interval_value) if s else '' }}" min="0.1" step="any" required class="narrow"></label>
 <label>Unit
   <select name="interval_unit">{% for u in units %}<option value="{{ u }}"{% if s and s.interval_unit == u %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
+<label title="Optional, for km or hours: due at whichever comes first (e.g. 200 h or 365 days)">or every … days <input type="number" name="or_days" value="{{ '%g' | format(s.or_days) if s and s.or_days else '' }}" min="1" step="any" class="narrow" placeholder="—"></label>
 <label>Counting
   <select name="rides">
     {% for value, label in [("all", "all rides"), ("outdoor", "outdoor only"), ("indoor", "indoor only")] %}<option value="{{ value }}"{% if s and s.rides == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
   </select></label>
+<label class="description"><span>What to do <span class="muted">(optional; links are clickable)</span></span>
+  <textarea name="description" rows="3" maxlength="4000" placeholder="e.g. Lowers off, clean, new foam rings + 5 ml splash oil. https://…">{{ s.description if s and s.description else '' }}</textarea></label>

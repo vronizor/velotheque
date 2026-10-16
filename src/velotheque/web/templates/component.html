@@ -43,11 +43,12 @@
           <div class="service-type">
             <div class="service-row">{{ bar(u) }} {{ log_button(c.id, u, "/components/" ~ c.id ~ "#service") }}</div>
             <p class="muted small">
-              Level {{ u.level }} · every {{ amount(u.interval_value, u.interval_unit) }}
+              Level {{ u.level }} · every {{ amount(u.interval_value, u.interval_unit) }}{% if u.or_days %} or {{ amount(u.or_days, "days") }}, whichever comes first{% endif %}
               · {{ scope(u.rides) if u.interval_unit != "days" else "calendar time" }}
               · {% if u.reset_at %}last done {{ u.reset_at | local(zone, "%Y-%m-%d") }}{% else %}never done, counted from mounting{% endif %}
               {% if u.interval_unit != "days" %}· {{ u.ride_count }} ride{{ "" if u.ride_count == 1 else "s" }} since{% endif %}
             </p>
+            {% if u.description %}<p class="service-description">{{ u.description | urlize(50, target="_blank", rel="noopener") }}</p>{% endif %}
             <details class="edit">
               <summary class="small">Edit</summary>
               <form class="service-form" method="post" action="/components/{{ c.id }}/service-types/{{ u.id }}">

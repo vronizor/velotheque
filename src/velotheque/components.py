@@ -237,16 +237,22 @@ def delete_assignment(conn: Connection, component_id: int, assignment_id: int) -
     )
 
 
-def _service_values(name: str, level, interval_value, interval_unit: str, rides: str) -> dict:
+DESCRIPTION_MAX = 4000
+
+
+def _service_values(
+    name: str, level, interval_value, interval_unit: str, rides: str, or_days=None, description=None
+) -> dict:
     name = _text(name, 80)
     if not name:
         raise ComponentError("Give the service a name")
     try:
         level, interval_value = int(level), float(interval_value)
+        or_days = float(or_days) if str(or_days or "").strip() else None
     except (TypeError, ValueError):
-        raise ComponentError("Level and interval must be numbers") from None
-    if level < 1 or not interval_value > 0:
-        raise ComponentError("Level must be 1 or more and the interval above 0")
+        raise ComponentError("Level and intervals must be numbers") from None
+    if level < 1 or not interval_value > 0 or (or_days is not None and not or_days > 0):
+        raise ComponentError("Level must be 1 or more and intervals above 0")
     if interval_unit not in INTERVAL_UNITS or rides not in RIDE_SCOPES:
         raise ComponentError("Unknown unit or ride scope")
     return {
@@ -255,13 +261,25 @@ def _service_values(name: str, level, interval_value, interval_unit: str, rides:
         "interval_value": interval_value,
         "interval_unit": interval_unit,
         "rides": rides,
+        "or_days": None if interval_unit == "days" else or_days,
+        "description": (description or "").strip()[:DESCRIPTION_MAX] or None,
     }
 
 
 def add_service_type(
-    conn: Connection, component_id: int, name, level, interval_value, interval_unit, rides="all"
+    conn: Connection,
+    component_id: int,
+    name,
+    level,
+    interval_value,
+    interval_unit,
+    rides="all",
+    or_days=None,
+    description=None,
 ) -> int:
-    values = _service_values(name, level, interval_value, interval_unit, rides)
+    values = _service_values(
+        name, level, interval_value, interval_unit, rides, or_days, description
+    )
     return conn.execute(
         insert(service_type)
         .values(component_id=component_id, **values)
@@ -270,7 +288,16 @@ def add_service_type(
 
 
 def edit_service_type(
-    conn: Connection, component_id: int, service_type_id: int, name, level, value, unit, rides
+    conn: Connection,
+    component_id: int,
+    service_type_id: int,
+    name,
+    level,
+    value,
+    unit,
+    rides,
+    or_days=None,
+    description=None,
 ) -> None:
     conn.execute(
         update(service_type)
@@ -278,7 +305,7 @@ def edit_service_type(
             service_type.c.id == service_type_id,
             service_type.c.component_id == component_id,
         )
-        .values(**_service_values(name, level, value, unit, rides))
+        .values(**_service_values(name, level, value, unit, rides, or_days, description))
     )
 
 
@@ -314,6 +341,8 @@ def copy_schedule(conn: Connection, from_id: int, to_id: int) -> int:
                 interval_value=row.interval_value,
                 interval_unit=row.interval_unit,
                 rides=row.rides,
+                or_days=row.or_days,
+                description=row.description,
             )
         )
         copied += 1
@@ -360,12 +389,14 @@ INDOOR = "(r.trainer OR r.type = 'VirtualRide')"
 USAGE = text(
     f"""
     SELECT t.id, t.component_id, t.name, t.level, t.interval_value, t.interval_unit, t.rides,
-           reset.at AS reset_at, used.rides AS ride_count, used.km, used.hours,
+           t.or_days, t.description, reset.at AS reset_at,
+           used.rides AS ride_count, used.km, used.hours,
            CASE t.interval_unit
              WHEN 'km' THEN used.km
              WHEN 'hours' THEN used.hours
-             ELSE extract(epoch FROM (:now - coalesce(reset.at, first.at))) / 86400
-           END AS used
+             ELSE age.days
+           END AS used,
+           age.days
     FROM service_type t
     CROSS JOIN LATERAL (
       SELECT max(e.performed_at) AS at
@@ -376,6 +407,9 @@ USAGE = text(
       SELECT min(a.mounted_at) AS at FROM component_assignment a
       WHERE a.component_id = t.component_id
     ) first
+    CROSS JOIN LATERAL (
+      SELECT extract(epoch FROM (:now - coalesce(reset.at, first.at))) / 86400 AS days
+    ) age
     CROSS JOIN LATERAL (
       SELECT count(r.id) AS rides,
              coalesce(sum(r.distance_m), 0) / 1000.0 AS km,
@@ -403,15 +437,31 @@ class Usage:
     interval_value: float
     interval_unit: str
     rides: str
+    or_days: float | None
+    description: str | None
     reset_at: datetime | None
     ride_count: int
     km: float
     hours: float
     used: float | None
+    days: float | None
+
+    @property
+    def days_fraction(self) -> float | None:
+        return None if self.or_days is None or self.days is None else self.days / self.or_days
+
+    @property
+    def by_days(self) -> bool:
+        """The "or N days" limit is the one closer to due."""
+        return self.days_fraction is not None and self.days_fraction > (self.fraction_used or 0)
+
+    @property
+    def fraction_used(self) -> float | None:
+        return None if self.used is None else self.used / self.interval_value
 
     @property
     def fraction(self) -> float | None:
-        return None if self.used is None else self.used / self.interval_value
+        return self.days_fraction if self.by_days else self.fraction_used
 
     @property
     def status(self) -> str:
@@ -425,7 +475,7 @@ def usage(
     found = []
     for r in conn.execute(USAGE, {"ids": component_ids, "now": now or datetime.now(UTC)}):
         values = dict(r._mapping)
-        for key in ("km", "hours", "used"):
+        for key in ("km", "hours", "used", "days"):
             values[key] = None if values[key] is None else float(values[key])
         found.append(Usage(**values))
     return found

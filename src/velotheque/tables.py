@@ -499,10 +499,13 @@ service_type = Table(
     Column("interval_value", Double, nullable=False),
     Column("interval_unit", Text, nullable=False),
     Column("rides", Text, nullable=False, server_default="all"),
+    Column("or_days", Double),  # "200 h or 365 days, whichever comes first"
+    Column("description", Text),
     CheckConstraint("level >= 1", name="level"),
     CheckConstraint("interval_value > 0", name="interval_value"),
     CheckConstraint("interval_unit IN ('km', 'hours', 'days')", name="interval_unit"),
     CheckConstraint("rides IN ('all', 'outdoor', 'indoor')", name="rides"),
+    CheckConstraint("or_days IS NULL OR (or_days > 0 AND interval_unit <> 'days')", name="or_days"),
     UniqueConstraint("id", "component_id"),
 )
 

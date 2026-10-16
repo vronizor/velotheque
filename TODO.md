@@ -56,6 +56,10 @@ Rules: usage = rides on the assignment's bike with `mounted_at <= start_at < rem
 - [x] README, .env.example (`TIMEZONE`)
 - [ ] Deploy to the Pi (owner): `git pull`, rebuild (migration 0010 runs at startup), then enter the real components
 - [ ] Move data to the SSD when it arrives (curated data now exists)
+- [x] "Or N days" on km/hours intervals (owner request, 2026-10-16: RockShox full service "200 h or 1 year, whichever comes first"). Time only (owner agreed; every whichever-first rule found is a time limit). Migration 0011 `service_type.or_days` (null, > 0, not on days intervals); usage returns `days` since the same reset; the bar follows the larger fraction, bold marks the leading limit; copy schedule carries it. Tests 139. Local: the owner's MTB fork, last full service Jan 2026 → 38/200 h · **269/365 d** (bar at 74%, by days); phone 390 px OK; test services removed afterwards
+- [x] Owner's MTB: 30 parts from Strava's gear page via a one-off script (not in the repo), mounted since its first ride; local totals 2,877 km / 55 rides = Strava's 2,876.8 km
+- [x] Service description, "What to do" (owner request, 2026-10-16): free text plus links on each interval. In the same migration 0011 (`service_type.description`, not pushed before). Shown under the bar on the component page (Jinja `urlize`, new tab, HTML escaped, line breaks kept), as a tooltip on the overview bars; copy schedule carries it. Tests 139
+- [ ] Owner: run the MTB import script on the Pi; deploy migration 0011
 
 ## Who you rode with (2026-10-16, owner request after M6)
 VERIFY (2026-10-16): the API gives no list of group members. Activities carry `athlete_count` only (local data: 572 rides at 1, 91 above, max 156); the old "related activities" endpoint isn't in the current API reference; the bulk export's activities.csv has no group column. Mentions `[strava://athletes/<id>/<len>]Name` carry the athlete id; `<len>` is the name's length in characters (checked on real mentions with accented names). They're only in the detail payload and the export description (not the summary).

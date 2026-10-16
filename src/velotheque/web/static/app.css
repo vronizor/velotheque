@@ -244,9 +244,13 @@ a.tag { text-decoration: none; }
 .status-soon .service-amount { color: var(--warn); }
 .status-over .service-amount { color: var(--red-dark); font-weight: 600; }
 .service-amount { font-variant-numeric: tabular-nums; }
+.service-amount .lead { font-weight: 600; }
 .service-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
 .service-type { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .service-type p { margin: 2px 0; }
+.service-description { white-space: pre-line; overflow-wrap: anywhere; font-size: 0.9rem; border-left: 3px solid var(--line); padding-left: 8px; }
+.service-form label.description { flex-basis: 100%; }
+.service-form textarea { font: inherit; font-size: 0.9rem; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: #fff; width: 100%; box-sizing: border-box; }
 .service-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 8px 0; }
 .service-form label { display: flex; flex-direction: column; gap: 3px; font-size: 0.85rem; }
 .service-form label.wide { flex: 1; min-width: 12rem; }

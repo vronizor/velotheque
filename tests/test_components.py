@@ -128,6 +128,43 @@ def test_days_count_calendar_time(conn, bikes):
     assert used(conn, tyre, now=day(150)).status == "over"
 
 
+def test_or_days_whichever_comes_first(conn, bikes):
+    road, _ = bikes
+    fork = components.create(conn, "Fork")
+    components.add_service_type(conn, fork, "Lowers", 1, 50, "hours")
+    full = components.add_service_type(conn, fork, "Full", 2, 200, "hours", or_days="365")
+    components.mount(conn, fork, road, day(0))
+    ride(conn, road, day(10), hours=15)
+    quiet = used(conn, fork, "Full", now=day(330))
+    assert quiet.by_days and quiet.status == "soon" and quiet.fraction == pytest.approx(330 / 365)
+    assert used(conn, fork, "Full", now=day(366)).status == "over"
+    assert used(conn, fork, "Lowers", now=day(366)).status == "ok"
+
+    components.log_event(conn, fork, full, day(370))
+    ride(conn, road, day(380), hours=190)
+    busy = used(conn, fork, "Full", now=day(400))
+    assert not busy.by_days and busy.used == 190 and busy.status == "soon"
+    assert busy.days == pytest.approx(30)
+    assert used(conn, fork, "Lowers", now=day(400)).used == 190
+
+
+def test_or_days_validation(conn, bikes):
+    tyre = components.create(conn, "Tyre")
+    sealant = components.add_service_type(conn, tyre, "Sealant", 1, 90, "days", or_days=30)
+    assert used(conn, tyre).or_days is None  # a days interval needs no second clock
+    with pytest.raises(ComponentError, match="above 0"):
+        components.add_service_type(conn, tyre, "Wear", 1, 3000, "km", or_days="-1")
+    components.edit_service_type(conn, tyre, sealant, "Sealant", 1, 3000, "km", "all", "")
+    assert used(conn, tyre).or_days is None
+    components.edit_service_type(
+        conn, tyre, sealant, "Sealant", 1, 3000, "km", "all", "180", "  Top up 30 ml\n"
+    )
+    assert (used(conn, tyre).or_days, used(conn, tyre).description) == (180, "Top up 30 ml")
+    new = components.create(conn, "New tyre")
+    components.copy_schedule(conn, tyre, new)
+    assert (used(conn, new).or_days, used(conn, new).description) == (180, "Top up 30 ml")
+
+
 def test_indoor_scopes(conn, bikes):
     _, trainer_bike = bikes
     chain = components.create(conn, "Chain")
