@@ -70,6 +70,24 @@
   </fieldset>
 
   <fieldset>
+    <legend>Group</legend>
+    {% for value, label in (("solo", "Solo"), ("group", "Group rides")) %}
+      {% set n = facets.group.get(value, 0) %}
+      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="group" value="{{ value }}" form="filters" {% if state.has('group', value) %}checked{% endif %}> {{ label }} <span class="count">{{ n }}</span></label>
+    {% endfor %}
+  </fieldset>
+
+  {% if companions %}
+  <fieldset>
+    <legend>Rode with</legend>
+    {% for c in companions %}
+      {% set n = facets["with"].get(c.id, 0) %}
+      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="with" value="{{ c.id }}" form="filters" {% if state.has('with', c.id|string) %}checked{% endif %}> {{ c.name }} <span class="count">{{ n }}</span></label>
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+
+  <fieldset>
     <legend>Photos</legend>
     {% set n = facets.photos.get(True, 0) %}
     <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="photos" value="1" form="filters" {% if state.get('photos') is sameas true %}checked{% endif %}> With photos <span class="count">{{ n }}</span></label>

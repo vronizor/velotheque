@@ -11,11 +11,13 @@ from velotheque.geo import elevation_profile, haversine_m
 from velotheque.tables import (
     ROUTE_SOURCES,
     activity,
+    activity_companion,
     activity_photo,
     activity_region,
     activity_track,
     activity_track_simplified,
     bike,
+    companion,
     raw_gpx_file,
     region,
     region_country,
@@ -206,11 +208,38 @@ def ride_profile(conn: Connection, activity_id: int) -> str | None:
     return json.dumps(profile, separators=(",", ":")) if profile else None
 
 
-FACETS = ("type", "bike", "photos", "region")
+FACETS = ("type", "bike", "group", "with", "photos", "region")
 
 
 def ride_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
     return {p: facet_counts(conn, state, Entity.RIDES, activity, p) for p in FACETS}
+
+
+def companions(conn: Connection):
+    """Everyone ridden with, most rides first, with the rides they're shown on."""
+    c = activity_companion
+    rides = func.count(c.c.activity_id).filter(~c.c.hidden)
+    return conn.execute(
+        select(
+            companion.c.id,
+            companion.c.name,
+            (func.cardinality(companion.c.strava_athlete_ids) > 0).label("on_strava"),
+            rides.label("rides"),
+        )
+        .select_from(companion.outerjoin(c, c.c.companion_id == companion.c.id))
+        .group_by(companion.c.id)
+        .order_by(rides.desc(), func.lower(companion.c.name))
+    ).all()
+
+
+def ride_companions(conn: Connection, activity_id: int):
+    c = activity_companion
+    return conn.execute(
+        select(companion.c.id, companion.c.name, c.c.source)
+        .select_from(c.join(companion, companion.c.id == c.c.companion_id))
+        .where(c.c.activity_id == activity_id, ~c.c.hidden)
+        .order_by(func.lower(companion.c.name))
+    ).all()
 
 
 def ride_photos(conn: Connection, activity_id: int):

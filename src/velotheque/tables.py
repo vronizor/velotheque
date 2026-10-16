@@ -200,6 +200,8 @@ activity = Table(
     Column("bike_id", Integer, ForeignKey("bike.id", ondelete="SET NULL")),
     Column("trainer", Boolean, nullable=False, server_default=text("false")),
     Column("has_photos", Boolean, nullable=False, server_default=text("false")),
+    # Strava's group size, the owner included; it doesn't say who the others were.
+    Column("athlete_count", SmallInteger),
     Column("synced_at", TZ, nullable=False, server_default=func.now()),
     Column(
         "search_tsv",
@@ -418,6 +420,35 @@ saved_view = Table(
     Column("query_string", Text, nullable=False),
     Column("created_at", TZ, nullable=False, server_default=func.now()),
     UniqueConstraint("entity", "name"),
+)
+
+# People ridden with: added by hand, or from a Strava mention in the description (the
+# mention's athlete id ties later mentions to the same person). Removing a mentioned person
+# from a ride hides the link, so the next sync doesn't bring it back.
+companion = Table(
+    "companion",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("name", Text, nullable=False),
+    Column(
+        "strava_athlete_ids",
+        ARRAY(BigInteger),
+        nullable=False,
+        server_default=text("'{}'::bigint[]"),
+    ),
+    Column("created_at", TZ, nullable=False, server_default=func.now()),
+)
+
+activity_companion = Table(
+    "activity_companion",
+    metadata,
+    Column("activity_id", BigInteger, ForeignKey("activity.id", ondelete="CASCADE")),
+    Column("companion_id", Integer, ForeignKey("companion.id", ondelete="CASCADE")),
+    Column("source", Text, nullable=False),
+    Column("hidden", Boolean, nullable=False, server_default=text("false")),
+    PrimaryKeyConstraint("activity_id", "companion_id"),
+    CheckConstraint("source IN ('mention', 'manual')", name="source"),
+    Index(None, "companion_id"),
 )
 
 DERIVED_TABLES = (

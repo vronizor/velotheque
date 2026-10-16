@@ -1,12 +1,13 @@
 import re
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import exists, func, literal_column, or_, select
+from sqlalchemy import case, exists, func, literal_column, or_, select
 
 from velotheque.filters.registry import Entity, Field, register
 from velotheque.geo import decode_polyline, polygon_wkt
 from velotheque.tables import (
     ROUTE_SOURCE_MAX,
+    activity_companion,
     activity_region,
     activity_track,
     route_coverage,
@@ -312,3 +313,49 @@ register(
         facet=_region_facet,
     )
 )
+
+
+GROUPS = ("solo", "group")
+
+
+def _group(value: str) -> str:
+    if value not in GROUPS:
+        raise ValueError(value)
+    return value
+
+
+def _group_of(t):
+    """Strava's group size: 1 is solo; unknown (export-only rides) is neither."""
+    return case((t.c.athlete_count > 1, "group"), (t.c.athlete_count == 1, "solo"))
+
+
+register(
+    Field(
+        "group",
+        "Group",
+        RIDES,
+        _group,
+        lambda t, v: _group_of(t).in_(v),
+        multi=True,
+        facet=_group_of,
+    )
+)
+
+
+def _shown_companions(t):
+    c = activity_companion
+    return (c.c.activity_id == t.c.id, ~c.c.hidden)
+
+
+def _with_where(t, values):
+    c = activity_companion
+    return exists().where(*_shown_companions(t), c.c.companion_id.in_(values))
+
+
+def _with_facet(t):
+    c = activity_companion
+    ids = select(func.array_agg(c.c.companion_id)).where(*_shown_companions(t))
+    return func.unnest(ids.scalar_subquery())
+
+
+register(Field("with", "Rode with", RIDES, int, _with_where, multi=True, facet=_with_facet))

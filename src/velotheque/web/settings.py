@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import Connection, select
 
-from velotheque import backup, queries
+from velotheque import backup, companions, queries
 from velotheque.config import get_settings
 from velotheque.db import get_engine
 from velotheque.strava import oauth
@@ -32,6 +32,7 @@ def settings_page(request: Request, conn: Connection = Depends(get_conn)):
             "jobs": jobs,
             "export": queries.export_status(conn, settings.sport_types),
             "regions": queries.region_status(conn),
+            "companions": queries.companions(conn),
             "backup": backup.state(conn),
             "backups": backup.history(conn),
             "configured": bool(settings.strava_client_id and settings.strava_client_secret),
@@ -40,6 +41,16 @@ def settings_page(request: Request, conn: Connection = Depends(get_conn)):
             "now": datetime.now(UTC),
         },
     )
+
+
+@router.post("/companions/{companion_id}")
+def companion_rename(
+    companion_id: int, name: str = Form(...), conn: Connection = Depends(get_conn)
+):
+    kept = companions.rename(conn, companion_id, name)
+    conn.commit()
+    message = "Renamed" if kept == companion_id else "Merged"
+    return RedirectResponse(f"/settings?{urlencode({'message': message})}#people", 303)
 
 
 @router.get("/strava/connect")

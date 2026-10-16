@@ -33,6 +33,15 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Backup: first run (531 photos), restore test from Drive OK, nightly timer, reboot test OK
 - [ ] Move data to the SSD before Milestone 4 (see Pi deployment notes)
 
+## Who you rode with (2026-10-16, owner request after M6)
+VERIFY (2026-10-16): the API gives no list of group members. Activities carry `athlete_count` only (local data: 572 rides at 1, 91 above, max 156); the old "related activities" endpoint isn't in the current API reference; the bulk export's activities.csv has no group column. Mentions `[strava://athletes/<id>/<len>]Name` carry the athlete id; `<len>` is the name's length in characters (checked on real mentions with accented names). They're only in the detail payload and the export description (not the summary).
+- [x] Migration 0009: `activity.athlete_count` (normalized, backfilled from the latest raw payload); curated `companion` (name, `strava_athlete_ids[]`) and `activity_companion` (source mention|manual, `hidden` so a removed mention stays removed); backfill of existing mentions (local: 2 people, 6 rides)
+- [x] normalize links mentions on every sync (by athlete id, else by a hand-added name, else new)
+- [x] Ride page: Riders stat, "Rode with" chips (link to Explore), Add someone (datalist), × remove, "Strava counted a group of N" hint
+- [x] Filters `group` (solo/group) and `with` (person), with facet counts; Settings → People (ride counts, rename = merge)
+- [x] Tests (120 total), local migration on real data (317 solo, 73 group), headless check of ride page add/remove, Explore, Settings
+- [ ] Deploy to the Pi (owner): `git pull`, rebuild (migration 0009 runs at startup)
+
 ## M6 — Regions (started 2026-10-16)
 VERIFY (2026-10-16): GADM 4.1 is still the current release (no 4.2/5.0 on geodata.ucdavis.edu). One GeoPackage per country with layers `ADM_ADM_0..n`, MULTIPOLYGON/4326, readable with stdlib sqlite3 (GPKG header + WKB) → no GDAL. Sizes vary a lot (CHE 14 MB, ESP 33, FRA 49, USA 113, AUT 171, GBR 431). Levels: FRA 0–5 (5 = 36,611 communes, pre-*communes nouvelles*), ESP 0–4 (8,302 municipios), CHE 0–3 (2,781 communes, pre-merger). `ENGTYPE_n` gives the type label (FRA level 3 says "Districts"); `VARNAME_n` is `|`-separated, sometimes truncated or mis-encoded (e.g. "Andaluc¡a"), "NA" = none; lakes are separate "Water body" regions (skipped). Valencia province has VARNAME València; Valencia municipality comes in 2 pieces (two comarcas).
 geoBoundaries considered (owner question): open licences and newer boundaries (CH 2022, 2,286 communes), but no variant names, levels from different sources/years with no parent link, inconsistent type labels → GADM kept (search + hierarchy).

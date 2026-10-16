@@ -65,6 +65,32 @@
     <p class="muted small">Boundaries from <a href="https://gadm.org" target="_blank" rel="noopener">GADM 4.1</a> (non-commercial use). Add or update countries with <code>docker compose exec app velotheque regions load FRA ESP CHE</code> (three-letter codes). Regions aren't in the nightly backup: after a restore, run <code>velotheque regions reload</code>.</p>
   </section>
 
+  <section id="people">
+    <h2>People</h2>
+    {% if companions %}
+      <table class="jobs people">
+        <thead><tr><th>Name</th><th class="num">Rides</th><th></th></tr></thead>
+        <tbody>
+          {% for c in companions %}
+            <tr>
+              <td>
+                <form class="rename" method="post" action="/companions/{{ c.id }}">
+                  <input type="text" name="name" value="{{ c.name }}" aria-label="Name" maxlength="80" required>
+                  <button type="submit" class="button secondary">Rename</button>
+                </form>
+              </td>
+              <td class="num">{% if c.rides %}<a href="/?with={{ c.id }}">{{ c.rides }}</a>{% else %}0{% endif %}</td>
+              <td class="muted small">{{ "mentioned on Strava" if c.on_strava else "added by hand" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Nobody yet.</p>
+    {% endif %}
+    <p class="muted small">Strava's API gives a ride's group size but not who was in it, so people come from @mentions in ride descriptions (added on each sync) or are added on a ride's page. Renaming someone to a name already listed merges the two.</p>
+  </section>
+
   <section id="backup">
     <h2>Backups</h2>
     {% if backup.last_success %}

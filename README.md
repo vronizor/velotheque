@@ -13,6 +13,7 @@ Milestones 1–3, 5 and 6 (this version) cover:
 - nightly backups of the database and photos to Proton Drive, a tested restore, and a backup indicator in the header
 - a **route library**: GPX import (upload form and CLI, race stages merged into one route), tags, how much of each route you've ridden, and routes on the Explore map
 - **regions**: GADM boundaries per country, every ride and route tagged with the regions it crosses, and a region filter with accent-insensitive place search
+- **who you rode with**: Strava's group size on every ride, and a "Rode with" list per ride, filled from @mentions in descriptions or by hand, with Solo / Group and Rode with filters
 
 Milestone 4 (components and maintenance) comes later.
 
@@ -31,10 +32,10 @@ The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress i
 | Layer | Tables | Notes |
 |---|---|---|
 | Raw | `raw_strava_*`, `raw_export_activity`, `raw_gpx_file` | Append-only. A row is only added when the payload changed; GPX files are kept byte for byte, de-duplicated by hash. |
-| Normalized | `activity`, `activity_track`, `bike`; `route` geometry, km, m+ | Rebuilt from raw with `velotheque normalize` |
+| Normalized | `activity` (incl. Strava's `athlete_count`), `activity_track`, `bike`; `route` geometry, km, m+ | Rebuilt from raw with `velotheque normalize` |
 | Reference | `region_country`, `region` | GADM boundaries, loaded per country with `velotheque regions load`. Only `region_country` (the list of countries) is in the nightly dump; `regions reload` brings the rest back. |
 | Derived | `activity_track_simplified`, `route_simplified`, `route_ride_overlap`, `route_coverage`, `region_part`, `activity_region`, `route_region` | Rebuilt with `velotheque rebuild-derived` |
-| Curated | `saved_view`; `route` name, source, tags, notes and its `route_file` list | Hand-entered, irreplaceable, in the nightly backup |
+| Curated | `saved_view`; `companion`, `activity_companion` (who you rode with); `route` name, source, tags, notes and its `route_file` list | Hand-entered, irreplaceable, in the nightly backup |
 
 ## Setup on the Pi
 
@@ -163,7 +164,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 
 - **One state everywhere:** all filters live in the URL, so every view can be bookmarked, the back button works, and a saved view is just a named query string.
 - **How filters combine:** values within one field are ORed, and different fields are ANDed.
-- **Counts:** the number next to each type, bike, photos or region option counts every other active filter except that field's own. It shows what ticking that option would give.
+- **Counts:** the number next to each type, bike, group, person, photos or region option counts every other active filter except that field's own. It shows what ticking that option would give.
 - **Selecting a ride:** click a row in the list (anywhere but its name) to highlight that ride and zoom the map to it, with all other rides still drawn. Click the row again to deselect. Clicking the name opens the ride page.
 - **Search** (`q`) matches the start of every word in the name and description, ignoring accents (`valencia` finds “València”). Names also get a typo-tolerant match (`galibeir` finds “Galibier”). There's no language stemming, because titles mix French, Spanish, Catalan and English.
 - **Reset filters** clears every filter but keeps the Rides / Routes / Both choice.
@@ -174,6 +175,15 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
   - **Filter to this view**: uses the visible map.
   - **Reset map**: clears the map area and the selected ride, and zooms back to all results.
   - A ride matches if its track crosses the area. Panning on its own never filters.
+
+## Who you rode with
+
+Strava's API and bulk export never say who was on a group ride. The API only gives `athlete_count`, the group size Strava detected, you included (`1` = solo). The avatars on Strava's ride page aren't available to other apps.
+
+- **Riders** on the ride page shows that count, and Explore's **Group** box filters Solo / Group rides (rides from the bulk export only, with no API data, are in neither).
+- **Rode with** on the ride page lists people. Each sync adds anyone @mentioned in the description (the mention carries their Strava athlete id, so the same person is recognised later even if their display name changes). Add others by hand with **Add someone** (it suggests names already used); × removes someone. A removed mention stays removed after the next sync.
+- Explore's **Rode with** box filters by person, with counts. **Settings → People** lists everyone with their ride count; renaming someone to a name already listed merges the two (rides and Strava ids).
+- Mentions already in your descriptions were picked up when migration 0009 ran.
 
 ## Regions
 

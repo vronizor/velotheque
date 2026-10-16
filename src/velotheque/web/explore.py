@@ -98,6 +98,7 @@ def results_context(
             facets=queries.ride_facets(conn, state),
             types=queries.ride_types(conn),
             bikes=queries.bikes(conn),
+            companions=queries.companions(conn),
             rows=queries.ride_rows(conn, state, sort),
             totals=totals,
             geojson_url="/explore/rides.geojson" + (f"?{query}" if query else ""),

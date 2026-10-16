@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import Connection, delete, select, text, union
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
+from velotheque.companions import link_mentions
 from velotheque.config import Settings
 from velotheque.exportrow import as_api_payload
 from velotheque.geo import multilinestring_wkt, split_segments
@@ -125,9 +126,8 @@ def normalize_activity(
         )
         return None
 
-    description = detail.payload.get("description") if detail else exported.get("description")
-    if description:
-        description = MENTION.sub("", description)
+    raw_description = detail.payload.get("description") if detail else exported.get("description")
+    description = MENTION.sub("", raw_description) if raw_description else None
     photos = max(payload.get("total_photo_count") or 0, exported.get("total_photo_count") or 0)
     values = {
         "name": payload.get("name") or "",
@@ -143,6 +143,7 @@ def normalize_activity(
         "bike_id": _bike_id(conn, payload.get("gear_id"), exported.get("gear_name")),
         "trainer": bool(payload.get("trainer")),
         "has_photos": photos > 0,
+        "athlete_count": payload.get("athlete_count"),
         "synced_at": datetime.now(UTC),
     }
     stmt = insert(activity).values(source="strava", source_id=source_id, **values)
@@ -151,6 +152,7 @@ def normalize_activity(
             constraint="uq_activity_source_source_id", set_=values
         ).returning(activity.c.id)
     ).scalar_one()
+    link_mentions(conn, activity_id, raw_description)
     export_file = settings.data_dir / export.file_path if export and export.file_path else None
     _normalize_track(conn, activity_id, source_id, payload, export_file, force_track)
     return activity_id

@@ -191,6 +191,19 @@ tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 
 .ride-routes { margin: 16px 0; }
 .regions-crossed { margin: 16px 0; }
+.companions { margin: 16px 0; }
+.companions h2 { margin-bottom: 6px; }
+.companions p { margin: 0 0 6px; }
+.chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 2px; background: var(--cream); border-radius: 999px; padding: 2px 4px 2px 10px; }
+.chip a { text-decoration: none; }
+.chip-remove { background: none; color: var(--muted) !important; padding: 0 6px; font-size: 1rem; line-height: 1; }
+.chip-remove:hover { background: none; color: var(--red-dark) !important; }
+.chip-add { display: flex; gap: 4px; }
+.chip-add input, .people input[type="text"] { font: inherit; font-size: 0.9rem; padding: 4px 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
+.chip-add button { padding: 4px 10px; }
+.people .rename { display: flex; gap: 6px; }
+.people .rename button { padding: 4px 10px; }
 .region-list { margin: 6px 0 10px; display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; }
 .region-list div { display: contents; }
 .region-list dt { color: var(--muted); font-size: 0.85rem; }

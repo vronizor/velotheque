@@ -25,6 +25,7 @@
     <div><dt>Elapsed</dt><dd>{{ ride.elapsed_time_s | duration }}</dd></div>
     <div><dt>Avg speed</dt><dd>{{ "%.1f" | format(ride.distance_m / ride.moving_time_s * 3.6 if ride.moving_time_s else 0) }} km/h</dd></div>
     <div><dt>Bike</dt><dd>{{ ride.bike_name or "—" }}</dd></div>
+    <div><dt>Riders</dt><dd>{% if ride.athlete_count %}{{ ride.athlete_count }}{% if ride.athlete_count == 1 %} <span class="muted small">solo</span>{% endif %}{% else %}—{% endif %}</dd></div>
   </dl>
 
   {% if track %}
@@ -43,6 +44,8 @@
   {% if ride.description %}
     <section class="description">{{ ride.description }}</section>
   {% endif %}
+
+  {% include "_companions.html" %}
 
   {% with explore = "/?" %}{% include "_regions_crossed.html" %}{% endwith %}
 
