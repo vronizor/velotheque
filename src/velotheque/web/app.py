@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -10,6 +9,7 @@ from velotheque.db import get_engine
 from velotheque.photos import PHOTO_DIR
 from velotheque.strava.sync import mark_interrupted
 from velotheque.web import explore, jobs, ride, route, settings, views
+from velotheque.web.deps import STATIC_DIR
 
 
 @asynccontextmanager
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Vélothèque", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount(
     "/photos",
     StaticFiles(directory=get_settings().data_dir / PHOTO_DIR, check_dir=False),

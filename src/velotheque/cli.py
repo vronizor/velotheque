@@ -118,6 +118,15 @@ def cmd_routes_import(args) -> None:
     _print_report(report)
 
 
+def cmd_routes_import_library(args) -> None:
+    from velotheque.db import get_engine
+    from velotheque.routes import import_library
+
+    with get_engine().begin() as conn:
+        report = import_library(conn, Path(args.folder), source=args.source, tags=args.tag)
+    _print_report(report)
+
+
 def cmd_routes_import_export(args) -> None:
     from velotheque.db import get_engine
     from velotheque.routes import import_export_routes
@@ -172,6 +181,14 @@ def main(argv: list[str] | None = None) -> None:
     )
     route_import.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
     route_import.set_defaults(func=cmd_routes_import)
+    library = routes.add_parser(
+        "import-library",
+        help="import a folder: one route per file, one merged route per subfolder",
+    )
+    library.add_argument("folder", help="folder of route files and race subfolders")
+    library.add_argument("--source", default="file", help="where the routes come from")
+    library.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
+    library.set_defaults(func=cmd_routes_import_library)
     route_export = routes.add_parser(
         "import-export", help="import the routes drawn on Strava from a bulk export zip"
     )

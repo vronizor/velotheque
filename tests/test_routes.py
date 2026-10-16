@@ -8,7 +8,7 @@ from sqlalchemy import select, text
 from velotheque.derive import derive_activities, rebuild_derived
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
 from velotheque.geo import elevation_gain
-from velotheque.routes import clean_source, import_export_routes, import_files
+from velotheque.routes import clean_source, import_export_routes, import_files, import_library
 from velotheque.tables import activity, route, route_coverage, route_file, route_ride_overlap
 from velotheque.trackfiles import parse_route_file
 
@@ -264,3 +264,16 @@ def test_source_is_free_text_but_reuses_spellings(conn):
     conn.execute(route.update().where(route.c.id == route_id).values(source="Komoot"))
     assert clean_source(conn, "KOMOOT") == "Komoot"
     assert clean_source(conn, "x" * 50) == "x" * 40
+
+
+def test_library_folder_merges_subfolders(conn, tmp_path):
+    (tmp_path / "loop.gpx").write_bytes(gpx(east(3), name="Loop"))
+    (tmp_path / "loop.geojson").write_text("{}")
+    race = tmp_path / "2023_some-race"
+    race.mkdir()
+    for i in (2, 1):
+        (race / f"stage{i}.gpx").write_bytes(gpx(east(i + 1, start_km=i), name=f"S{i}"))
+    report = import_library(conn, tmp_path, tags=["x"])
+    assert sorted(name for _, name in report.created) == ["2023_some-race", "Loop"]
+    assert report.skipped == []
+    assert import_library(conn, tmp_path).created == []

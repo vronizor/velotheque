@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +9,11 @@ from sqlalchemy import Connection
 from velotheque.db import get_engine
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+STATIC_DIR = Path(__file__).parent / "static"
+# Appended to asset URLs so browsers fetch the new CSS/JS after a deploy.
+templates.env.globals["static_version"] = hashlib.sha256(
+    b"".join(p.read_bytes() for p in sorted(STATIC_DIR.glob("*.*")))
+).hexdigest()[:10]
 
 
 def get_conn() -> Iterator[Connection]:

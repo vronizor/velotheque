@@ -237,8 +237,8 @@ th.col-pick, td.col-pick { width: 1.5rem; padding-right: 0; }
 .bulk[hidden] { display: none; }
 .bulk input[type="text"] { font: inherit; font-size: 0.9rem; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; width: 9rem; }
 .bulk-count { font-size: 0.9rem; margin-right: 4px; }
-details.ride-routes > summary { cursor: pointer; list-style: none; }
+details.ride-routes > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; }
 details.ride-routes > summary::-webkit-details-marker { display: none; }
-details.ride-routes > summary h2 { display: inline; }
-details.ride-routes > summary h2::before { content: "▸ "; color: var(--muted); }
-details.ride-routes[open] > summary h2::before { content: "▾ "; }
+details.ride-routes > summary::before { content: "▸"; color: var(--muted); font-size: 1.2rem; width: 0.8em; }
+details.ride-routes[open] > summary::before { content: "▾"; }
+details.ride-routes > summary h2 { margin-block: 0.6em; }

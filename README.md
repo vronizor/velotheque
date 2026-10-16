@@ -137,6 +137,7 @@ A route is a GPX file (or several merged ones) that you keep for inspiration. Ea
 **Importing.** Use **Routes → + Import GPX** in the app: choose several files at once; tick “Merge” to turn the stages of a race into one route (they're ordered by file name, `s2` before `s10`). Or use the CLI:
 
 ```sh
+docker compose exec app velotheque routes import-library /data/imports/gpx-library   # one route per file, one merged route per subfolder
 docker compose exec app velotheque routes import /data/imports/gpx/*.gpx --tag bikepacking
 docker compose exec app velotheque routes import --merge --tag race /data/imports/gpx/some-race/*.gpx
 docker compose exec app velotheque routes import-export /data/imports/export_XXXX.zip   # routes drawn on Strava
@@ -275,6 +276,7 @@ docker compose exec app velotheque sync              # same as the Sync now butt
 docker compose exec app velotheque sync --activity 1234567890
 docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
 docker compose exec app velotheque routes import FILE… [--merge] [--name N] [--source S] [--tag T]
+docker compose exec app velotheque routes import-library DIR [--source S] [--tag T]
 docker compose exec app velotheque routes import-export /data/imports/export_XXXX.zip
 docker compose exec app velotheque normalize         # rebuild normalized tables (rides and routes) from raw (--force-tracks re-parses export files)
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables

@@ -7,12 +7,12 @@
   <title>{% block title %}Vélothèque{% endblock %}</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ static_version }}">
   <script src="/static/vendor/htmx.min.js" defer></script>
   <script src="/static/vendor/maplibre-gl.js" defer></script>
   <script src="/static/vendor/terra-draw.umd.js" defer></script>
   <script src="/static/vendor/terra-draw-maplibre-gl-adapter.umd.js" defer></script>
-  <script src="/static/app.js" defer></script>
+  <script src="/static/app.js?v={{ static_version }}" defer></script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <header class="topbar">
