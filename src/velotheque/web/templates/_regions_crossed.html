@@ -1,0 +1,13 @@
+{% if regions %}
+<details class="collapsible regions-crossed" data-remember="regions" open>
+  <summary><h2>Regions <span class="muted">{% for g in regions if g.country %}{{ g.country.name }}{% if not loop.last %} · {% endif %}{% endfor %}</span></h2></summary>
+  {% for g in regions %}
+    <dl class="region-list">
+      {% if g.country %}<div><dt>Country</dt><dd><a href="{{ explore }}region={{ g.country.id }}">{{ g.country.name }}</a></dd></div>{% endif %}
+      {% for label, items in g.levels %}
+        <div><dt>{{ label }}</dt><dd>{% for r in items %}<a href="{{ explore }}region={{ r.id }}">{{ r.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</dd></div>
+      {% endfor %}
+    </dl>
+  {% endfor %}
+</details>
+{% endif %}

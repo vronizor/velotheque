@@ -1,16 +1,16 @@
 # Vélothèque — TODO
 
-Plan: Milestone 5 (Routes); M4 deferred until the SSD move. Spec: `velotheque-spec.md`.
+Plan: Milestone 6 (Regions); M4 deferred until the SSD move. Spec: `velotheque-spec.md`.
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Blockers / waiting on the owner
 - [x] Docker Desktop installed on the Mac
-- [!] Git remote URL — wasn't in the message; needed before the first push
+- [x] Git remote URL (GitHub, public)
 - [x] Pi access: skipped by choice. Test on local Docker (arm64, same as the Pi); owner git-pulls on the Pi
 - [x] Browser check of the UI: done by the owner, all working
-- [ ] Put `STRAVA_CLIENT_SECRET` in `.env` (never commit it)
+- [x] Put `STRAVA_CLIENT_SECRET` in `.env` (never commit it)
 - [ ] Proton Drive CLI on the Pi: install linux/arm64 build + `sudo ops/install-backup.sh` + login (README → Backup). VERIFY results are in the M3 section.
-- [ ] Click "Upgrade" in the Strava API dashboard (read limit 100/1,000 → 200/2,000)
+- [x] Click "Upgrade" in the Strava API dashboard (read limit 100/1,000 → 200/2,000)
 - [ ] Note: the dashboard's own access token only has `scope: read`. The app gets its own token via the OAuth flow, with `read,activity:read_all,profile:read_all`.
 
 ## VERIFY log
@@ -32,6 +32,24 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Perf on the Pi under 1 s
 - [x] Backup: first run (531 photos), restore test from Drive OK, nightly timer, reboot test OK
 - [ ] Move data to the SSD before Milestone 4 (see Pi deployment notes)
+
+## M6 — Regions (started 2026-10-16)
+VERIFY (2026-10-16): GADM 4.1 is still the current release (no 4.2/5.0 on geodata.ucdavis.edu). One GeoPackage per country with layers `ADM_ADM_0..n`, MULTIPOLYGON/4326, readable with stdlib sqlite3 (GPKG header + WKB) → no GDAL. Sizes vary a lot (CHE 14 MB, ESP 33, FRA 49, USA 113, AUT 171, GBR 431). Levels: FRA 0–5 (5 = 36,611 communes, pre-*communes nouvelles*), ESP 0–4 (8,302 municipios), CHE 0–3 (2,781 communes, pre-merger). `ENGTYPE_n` gives the type label (FRA level 3 says "Districts"); `VARNAME_n` is `|`-separated, sometimes truncated or mis-encoded (e.g. "Andaluc¡a"), "NA" = none; lakes are separate "Water body" regions (skipped). Valencia province has VARNAME València; Valencia municipality comes in 2 pieces (two comarcas).
+geoBoundaries considered (owner question): open licences and newer boundaries (CH 2022, 2,286 communes), but no variant names, levels from different sources/years with no parent link, inconsistent type labels → GADM kept (search + hierarchy).
+Prototype on local data (FR+ES+CH): 52k regions loaded in 2.5 s, all valid; tagging rides+routes ~1 s; 307/341 rides tagged (the rest: FI, IE, US, AU, DK…). Region data adds ~63 MB to the compressed dump (85 → 148 MB) for three countries → kept out of the nightly dump (re-downloadable; `regions reload` after a restore).
+Plan (done 2026-10-16):
+- [x] Migration 0008: `region_country` (loaded countries, file name + sha; dumped), `region` (id = GADM GID, stable in URLs/saved views; country, level, name, alt_names, type_label, parent_id, search key, geometry), derived `region_part` (leaf regions subdivided to 255 vertices), `activity_region`, `route_region`
+- [x] `velotheque regions load FRA ESP CHE…|file.gpkg`, `regions reload | list | remove`; downloads cached in DATA_DIR/gadm; each country in its own transaction, tags rebuilt once at the end
+- [x] Tagging: intersect the deepest level (detail-simplified tracks), add ancestors; on sync, route import, rebuild-derived
+- [x] Filter `region` (rides + routes, multi, any level, `none` = untagged, incl. no-GPS rides), facet counts via the registry
+- [x] Explore: Region fieldset (countries + picked regions with counts, rides · routes in Both), "Find a place…" (word-prefix on name + variants, unaccented; exact first, then most rides), picked regions outlined on the map (simplified on the fly to 1/2000 of their size)
+- [x] Ride and route pages: "Regions" by level, each linking to Explore (shared partial)
+- [x] Settings: loaded countries, rides/routes without a region (links to `region=none`)
+- [x] Backup: dump-db.sh leaves out region/region_part/activity_region/route_region data (local dump 150 → 85 MB); scratch restore checked (region_country kept, region empty); restore.sh --live prints the reload step; README
+- [x] Tests: synthetic GeoPackage (with and without envelope), load/reload/remove, tagging + ancestors, routes, filter + facets + none, search, web, mentions (111 total)
+- [x] Real data locally: FRA+ESP+CHE in 20 s (incl. CHE download), reload 15 s; 307/341 tracked rides tagged; Explore with region filters 25–130 ms on the Mac, suggest ~50 ms, France outline 0.26 s; headless check of Explore (filter, search, tick, Both, phone), ride/route pages, Settings
+- [ ] Deploy to the Pi (owner): `git pull`, rebuild, `regions load` with the countries ridden; then `sudo ops/install-backup.sh` (dump-db.sh changed)
+- Notes: htmx inherits `hx-swap`/`hx-push-url` from the filters form, so the region search input sets its own. Countries in the local data without regions yet: FIN, IRL, USA, AUS, DNK (rides); routes also cross ALB, MNE, GRC, KGZ, IRL, USA/CAN, Eastern Europe.
 
 ## M5 — Routes (started 2026-10-16; M4 deferred until the SSD is in)
 Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-for-point copies of the .gpx); stage files of a race can be merged into one route; Strava export routes imported with source=strava so they can be filtered out; Strava-style ride page work comes right after M5. No status (the library is inspiration, not a to-do list): free-form tags instead (filter + counts; `mtb` auto-set from Strava GPX type); source = strava | gpx_studio | file; "ridden" is shown from coverage, never set by hand.
@@ -70,13 +88,13 @@ Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-
 - [x] Ride page "On routes" is now the same table as the route page's "Rides on this route" (Name · Route km · On route · Of route), same hover highlight / click zoom; shared `initPairRows` (owner: ride and route pages should feel symmetrical)
 - [x] "Rides on this route" collapsible (sections remember open/closed); hovering a row highlights that ride's covered part of the route (fetched once from `/routes/{id}/rides/{ride}.geojson`) and its line, clicking the row zooms to it
 - [x] Dropped (owner, not needed): link Strava routes to their Strava page. The export has no route id (`routes.csv` = name + `routes/N.gpx`, empty `<link>` in the GPX) and sync doesn't touch routes, so this needs `GET /athletes/{id}/routes` (needs the `read_all` scope for private routes; check the current token's scope) and a match on name + distance. Owner: not needed (2026-10-16)
-- [ ] Descriptions show Strava mentions raw (`[strava://athletes/…]`); render them as the name only
+- [x] Descriptions show Strava mentions raw (`[strava://athletes/<id>/<name length>]Name`): normalize keeps only the name; migration 0008 cleaned the existing rows (6 locally)
 - [!] Photo markers: none of the 517 photos has EXIF GPS or capture time (Strava strips them; media.csv has only filename + caption). Also a spec non-goal. Only lead: undocumented API photo endpoint
 
 ## Owner feedback (2026-10-15)
 - [x] Clicking a list row (not the name) selects the ride and zooms the map to it; other rides stay drawn; click again to deselect; the name still opens the ride page
 - [x] "↺ Reset map" next to the drawing tools: clears the map area + selection, zooms back to all results
-- [ ] Filter by place name (Aragón, Paris, …) = region filter, spec Milestone 6 (GADM). Not built yet; search only matches ride names/descriptions
+- [x] Filter by place name (Aragón, Paris, …) = region filter, M6
 
 ## M3 — Backup to Proton Drive
 - [x] VERIFY proton-drive CLI v0.9.0 (Mac binary + docs): linux/arm64 glibc build exists; `filesystem delete` + `trash` exist → prune by name; headless = `auth login` URL opened elsewhere + PROTON_DRIVE_CREDENTIALS_STORE (keychain | pass | unsafe_file); upload strategies replace/skip/rename/create-new-revision, folders merge. Per-command --help broken in 0.9.0; list --json shape + exit codes undocumented

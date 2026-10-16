@@ -1,4 +1,22 @@
+{% from "_region_option.html" import region_option with context %}
 <div id="facets" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <fieldset class="regions">
+    <legend>Region</legend>
+    {% if regions.loaded %}
+      {% for r in regions.shown %}
+        {{ region_option(r, state.has('region', r.id)) }}
+      {% endfor %}
+      {{ region_option({"id": "none", "name": "No region", "level": 0}, regions.none) }}
+      <input type="search" class="region-search" name="term" form="region-search" placeholder="Find a place…"
+             aria-label="Find a region" autocomplete="off"
+             hx-get="/regions/suggest" hx-include="#filters" hx-trigger="input changed delay:250ms, search"
+             hx-target="#region-suggestions" hx-swap="innerHTML" hx-push-url="false"
+             hx-on:change="event.stopPropagation()">
+      <div id="region-suggestions" class="region-suggestions" aria-live="polite"></div>
+    {% else %}
+      <p class="muted small">No regions loaded yet (see <a href="/settings">Settings</a>).</p>
+    {% endif %}
+  </fieldset>
   {% if on_route %}
   <fieldset>
     <legend>On route</legend>

@@ -18,7 +18,11 @@ name="velotheque-$(date -u +%Y-%m-%dT%H%MZ).dump"
 partial="$dumps/.$name.part"
 trap 'rm -f "$partial"' EXIT
 
-compose exec -T db sh -c 'pg_dump --format=custom -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$partial"
+# GADM regions (and the tags derived from them) are re-downloadable and would double the
+# dump; region_country stays, so `velotheque regions reload` knows what to load back.
+compose exec -T db sh -c 'pg_dump --format=custom -U "$POSTGRES_USER" \
+  --exclude-table-data=region --exclude-table-data=region_part \
+  --exclude-table-data=activity_region --exclude-table-data=route_region "$POSTGRES_DB"' > "$partial"
 compose exec -T db pg_restore --list < "$partial" > /dev/null
 mv "$partial" "$dumps/$name"
 

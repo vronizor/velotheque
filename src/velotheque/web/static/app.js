@@ -1,6 +1,6 @@
 "use strict";
 
-const COLORS = { ride: "#D63A2A", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412", selection: "#F2B705" };
+const COLORS = { ride: "#D63A2A", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412", selection: "#F2B705", region: "#6B4FA0" };
 const SOURCES = ["routes", "rides"];
 const ACTIVE = [
   "any",
@@ -214,10 +214,12 @@ function initExplore() {
     const section = results();
     if (!section) return;
     map.getSource("areas")?.setData(activeAreas());
-    const [rides, routes] = await Promise.all([
+    const [rides, routes, regions] = await Promise.all([
       fetchCollection(section.dataset.geojson),
       fetchCollection(section.dataset.routesGeojson),
+      fetchCollection(section.dataset.regionsGeojson),
     ]);
+    map.getSource("regions")?.setData(regions);
     highlighted = null;
     selected = null;
     data.rides = rides;
@@ -231,6 +233,9 @@ function initExplore() {
   }
 
   map.on("load", () => {
+    map.addSource("regions", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: "regions-fill", type: "fill", source: "regions", paint: { "fill-color": COLORS.region, "fill-opacity": 0.06 } });
+    map.addLayer({ id: "regions-line", type: "line", source: "regions", paint: { "line-color": COLORS.region, "line-width": 1.5, "line-opacity": 0.7 } });
     map.addSource("rides", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     map.addLayer({
       id: "rides",

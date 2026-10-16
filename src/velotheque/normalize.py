@@ -22,6 +22,8 @@ from velotheque.tables import (
 from velotheque.trackfiles import parse_track_file
 
 log = logging.getLogger(__name__)
+# Strava mentions: "[strava://athletes/<id>/<length>]Name" → "Name".
+MENTION = re.compile(r"\[strava://[^\]\s]*\]")
 _TZ_NAME = re.compile(r"\)\s*(\S+)\s*$")
 
 
@@ -124,6 +126,8 @@ def normalize_activity(
         return None
 
     description = detail.payload.get("description") if detail else exported.get("description")
+    if description:
+        description = MENTION.sub("", description)
     photos = max(payload.get("total_photo_count") or 0, exported.get("total_photo_count") or 0)
     values = {
         "name": payload.get("name") or "",

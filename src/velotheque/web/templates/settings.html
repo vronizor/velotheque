@@ -42,6 +42,29 @@
     {% endif %}
   </section>
 
+  <section id="regions">
+    <h2>Regions</h2>
+    {% if regions.countries %}
+      <table class="jobs">
+        <thead><tr><th>Country</th><th class="num">Regions</th><th>File</th><th>Loaded (UTC)</th></tr></thead>
+        <tbody>
+          {% for c in regions.countries %}
+            <tr><td><a href="/?region={{ c.country }}">{{ c.name }}</a> <span class="muted">{{ c.country }}</span></td><td class="num">{{ c.regions | whole }}</td><td class="muted">{{ c.source }}</td><td>{{ c.loaded_at | when }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p>
+        {% if regions.rides_untagged %}<a href="/?region=none">{{ regions.rides_untagged }} rides</a>{% else %}No ride{% endif %}
+        and {% if regions.routes_untagged %}<a href="/?entity=routes&amp;region=none">{{ regions.routes_untagged }} routes</a>{% else %}no route{% endif %}
+        have no region{% if regions.rides_untagged or regions.routes_untagged %}: they're outside the loaded countries, so a country may be missing{% endif %}.
+        {% if regions.rides_no_gps %}<span class="muted">That includes {{ regions.rides_no_gps }} rides without GPS, which never get one.</span>{% endif %}
+      </p>
+    {% else %}
+      <p>No regions loaded yet, so the region filter is empty.</p>
+    {% endif %}
+    <p class="muted small">Boundaries from <a href="https://gadm.org" target="_blank" rel="noopener">GADM 4.1</a> (non-commercial use). Add or update countries with <code>docker compose exec app velotheque regions load FRA ESP CHE</code> (three-letter codes). Regions aren't in the nightly backup: after a restore, run <code>velotheque regions reload</code>.</p>
+  </section>
+
   <section id="backup">
     <h2>Backups</h2>
     {% if backup.last_success %}

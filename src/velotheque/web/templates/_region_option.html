@@ -1,0 +1,5 @@
+{% macro region_option(r, checked) -%}
+{%- set parts = [] -%}
+{%- for counts in region_counts.values() %}{% set _ = parts.append(counts.get(r.id, 0)) %}{% endfor -%}
+<label class="check region-option{% if not parts | sum %} zero{% endif %}"><input type="checkbox" name="region" value="{{ r.id }}" form="filters" {% if checked %}checked{% endif %}> <span>{{ r.name }}{% if r.level %} <span class="muted small">{{ r.type }}{% if r.context %} · {{ r.context }}{% endif %}</span>{% endif %}</span> <span class="count"{% if parts | length > 1 %} title="rides · routes"{% endif %}>{{ parts | join(" · ") }}</span></label>
+{%- endmacro %}

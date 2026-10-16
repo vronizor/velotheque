@@ -1,0 +1,6 @@
+{% from "_region_option.html" import region_option with context %}
+{% for r in found %}
+  {{ region_option(r, state.has('region', r.id)) }}
+{% else %}
+  {% if term and term.strip() %}<p class="muted small">No region matches “{{ term }}”.</p>{% endif %}
+{% endfor %}

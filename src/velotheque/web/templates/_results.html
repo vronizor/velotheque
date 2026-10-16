@@ -1,5 +1,5 @@
 <section id="results" class="results"
-  data-geojson="{{ geojson_url }}" data-routes-geojson="{{ routes_geojson_url }}" data-bbox="{{ bbox }}"
+  data-geojson="{{ geojson_url }}" data-routes-geojson="{{ routes_geojson_url }}" data-regions-geojson="{{ regions_geojson_url }}" data-bbox="{{ bbox }}"
   hx-get="{{ link() }}" hx-trigger="syncFinished from:body" hx-swap="outerHTML">
   <div class="resize-handle" data-resize="explore-split" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to resize the map and the list, double-click to reset"></div>
   <input type="hidden" name="sort" value="{{ sort }}" form="filters">

@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
@@ -7,6 +8,7 @@ from sqlalchemy import Connection
 from velotheque import queries
 from velotheque.config import get_settings
 from velotheque.filters import FilterState
+from velotheque.filters.fields import NO_REGION
 from velotheque.queries import DEFAULT_ROUTE_SORT, DEFAULT_SORT, ROUTE_SORTS, Sort
 from velotheque.web.deps import get_conn, templates
 
@@ -79,7 +81,15 @@ def results_context(
         ],
         "geojson_url": "",
         "routes_geojson_url": "",
+        "regions": queries.region_filter(conn, state),
+        "region_counts": {},
+        "regions_geojson_url": "",
     }
+    chosen = [v for v in state.raw.get("region", []) if v != NO_REGION]
+    if chosen:
+        context["regions_geojson_url"] = "/regions/outlines.geojson?" + urlencode(
+            [("region", v) for v in chosen]
+        )
     bbox = None
     if rides:
         totals, ride_bbox = queries.ride_totals(conn, state)
@@ -104,6 +114,14 @@ def results_context(
             route_totals=route_totals,
             routes_geojson_url="/explore/routes.geojson" + (f"?{query}" if query else ""),
         )
+    context["region_counts"] = {
+        name: (facets or {}).get("region", {})
+        for name, facets in (
+            ("rides", context.get("facets")),
+            ("routes", context.get("route_facets")),
+        )
+        if facets is not None
+    }
     context["bbox"] = json.dumps(bbox)
     return context
 

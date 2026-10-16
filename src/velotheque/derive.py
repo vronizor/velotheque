@@ -104,6 +104,36 @@ SELECT r.route_id, r.length_m, coalesce(k.m, 0),
 FROM routes r LEFT JOIN kept k USING (route_id)
 """
 
+# Regions: the deepest level is cut into small pieces; a ride or route is tagged with every
+# piece it touches, then with each of those regions' parents, so the levels always agree.
+REGION_PARTS = """
+INSERT INTO region_part (region_id, geometry)
+SELECT r.id, ST_Subdivide(r.geometry, 255)
+FROM region r
+WHERE NOT EXISTS (SELECT 1 FROM region c WHERE c.parent_id = r.id)
+"""
+
+TAG_REGIONS = """
+INSERT INTO {table} ({key}, region_id)
+WITH RECURSIVE leaves AS (
+  SELECT DISTINCT s.{key}, p.region_id
+  FROM {simplified} s JOIN region_part p ON ST_Intersects(s.geometry, p.geometry)
+  WHERE s.level = 'detail' AND {filter}
+),
+up AS (
+  SELECT {key}, region_id FROM leaves
+  UNION
+  SELECT u.{key}, r.parent_id FROM up u JOIN region r ON r.id = u.region_id
+  WHERE r.parent_id IS NOT NULL
+)
+SELECT {key}, region_id FROM up
+"""
+
+REGION_TAGS = {
+    "rides": ("activity_region", "activity_id", "activity_track_simplified"),
+    "routes": ("route_region", "route_id", "route_simplified"),
+}
+
 PARAMS = {"buffer_m": BUFFER_M, "min_piece_m": MIN_PIECE_M, "seam_deg": 2e-6}
 
 
@@ -124,6 +154,27 @@ def _coverage(conn: Connection, route_ids: list[int] | None) -> None:
     )
 
 
+def _tag_regions(conn: Connection, entity: str, ids: list[int] | None) -> None:
+    table, key, simplified = REGION_TAGS[entity]
+    if ids is None:
+        conn.execute(
+            text(TAG_REGIONS.format(table=table, key=key, simplified=simplified, filter="true"))
+        )
+        return
+    conn.execute(text(f"DELETE FROM {table} WHERE {key} = ANY(:ids)"), {"ids": ids})
+    sql = TAG_REGIONS.format(
+        table=table, key=key, simplified=simplified, filter=f"s.{key} = ANY(:ids)"
+    )
+    conn.execute(text(sql), {"ids": ids})
+
+
+def derive_regions(conn: Connection) -> None:
+    conn.execute(text("TRUNCATE region_part, activity_region, route_region"))
+    conn.execute(text(REGION_PARTS))
+    _tag_regions(conn, "rides", None)
+    _tag_regions(conn, "routes", None)
+
+
 def derive_activities(conn: Connection, activity_ids: list[int]) -> None:
     if not activity_ids:
         return
@@ -135,6 +186,7 @@ def derive_activities(conn: Connection, activity_ids: list[int]) -> None:
         ids,
     ).scalars()
     affected = set(before)
+    _tag_regions(conn, "rides", activity_ids)
     _overlaps(conn, "true", "a.activity_id = ANY(:ids)", ids)
     affected |= set(
         conn.execute(
@@ -151,6 +203,7 @@ def derive_routes(conn: Connection, route_ids: list[int]) -> None:
     for table in ("route_simplified", "route_ride_overlap", "route_coverage"):
         conn.execute(text(f"DELETE FROM {table} WHERE route_id = ANY(:ids)"), ids)
     conn.execute(text(SIMPLIFY_ROUTES + " AND r.id = ANY(:ids)"), ids)
+    _tag_regions(conn, "routes", route_ids)
     _overlaps(conn, "route_id = ANY(:ids)", "true", ids)
     _coverage(conn, route_ids)
 
@@ -161,3 +214,4 @@ def rebuild_derived(conn: Connection) -> None:
     conn.execute(text(SIMPLIFY_ROUTES))
     _overlaps(conn, "true", "true", {})
     _coverage(conn, None)
+    derive_regions(conn)

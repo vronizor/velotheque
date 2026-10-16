@@ -1,16 +1,25 @@
 import re
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, literal_column, or_, select
 
 from velotheque.filters.registry import Entity, Field, register
 from velotheque.geo import decode_polyline, polygon_wkt
-from velotheque.tables import ROUTE_SOURCE_MAX, activity_track, route_coverage, route_ride_overlap
+from velotheque.tables import (
+    ROUTE_SOURCE_MAX,
+    activity_region,
+    activity_track,
+    route_coverage,
+    route_region,
+    route_ride_overlap,
+)
 
 RIDES = frozenset({Entity.RIDES})
 ROUTES = frozenset({Entity.ROUTES})
 RIDES_AND_ROUTES = frozenset({Entity.RIDES, Entity.ROUTES})
 NO_BIKE = "none"
+NO_REGION = "none"
+_GID = re.compile(r"[A-Z0-9]{3}(\.\d+)*(_\d+)?")
 
 
 def _date(value: str) -> date:
@@ -260,5 +269,46 @@ register(
         ROUTES,
         _non_negative,
         lambda t, v: _coverage(t) <= v[0] / 100,
+    )
+)
+
+
+def _region(value: str) -> str:
+    if value != NO_REGION and not _GID.fullmatch(value):
+        raise ValueError(value)
+    return value
+
+
+def _region_links(t):
+    if t.name == "route":
+        return route_region.c.route_id, route_region.c.region_id
+    return activity_region.c.activity_id, activity_region.c.region_id
+
+
+def _region_where(t, values):
+    key, region_id = _region_links(t)
+    ids = [v for v in values if v != NO_REGION]
+    clauses = [exists().where(key == t.c.id, region_id.in_(ids))] if ids else []
+    if NO_REGION in values:
+        clauses.append(~exists().where(key == t.c.id))
+    return or_(*clauses)
+
+
+def _region_facet(t):
+    """Every region a ride/route is tagged with, or "none"."""
+    key, region_id = _region_links(t)
+    tagged = select(func.array_agg(region_id)).where(key == t.c.id).scalar_subquery()
+    return func.unnest(func.coalesce(tagged, literal_column(f"ARRAY['{NO_REGION}']")))
+
+
+register(
+    Field(
+        "region",
+        "Region",
+        RIDES_AND_ROUTES,
+        _region,
+        _region_where,
+        multi=True,
+        facet=_region_facet,
     )
 )

@@ -1,22 +1,28 @@
 import json
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column, select, text
 
 from velotheque.exportrow import gear_id, sport_type
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
+from velotheque.filters.fields import NO_REGION
 from velotheque.geo import elevation_profile, haversine_m
 from velotheque.tables import (
     ROUTE_SOURCES,
     activity,
     activity_photo,
+    activity_region,
     activity_track,
     activity_track_simplified,
     bike,
     raw_gpx_file,
+    region,
+    region_country,
     route,
     route_coverage,
     route_file,
+    route_region,
     route_ride_overlap,
     route_simplified,
     saved_view,
@@ -200,7 +206,7 @@ def ride_profile(conn: Connection, activity_id: int) -> str | None:
     return json.dumps(profile, separators=(",", ":")) if profile else None
 
 
-FACETS = ("type", "bike", "photos")
+FACETS = ("type", "bike", "photos", "region")
 
 
 def ride_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
@@ -329,7 +335,7 @@ def routes_geojson(conn: Connection, state: FilterState, level: str = "overview"
     )
 
 
-ROUTE_FACETS = ("tag", "source")
+ROUTE_FACETS = ("tag", "source", "region")
 
 
 def route_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
@@ -500,3 +506,176 @@ def ride_routes_geojson(conn: Connection, activity_id: int) -> str:
 
 def route_name(conn: Connection, route_id: int) -> str | None:
     return conn.execute(select(route.c.name).where(route.c.id == route_id)).scalar()
+
+
+def region_status(conn: Connection) -> dict:
+    def untagged(table, key):
+        return conn.execute(
+            select(func.count())
+            .select_from(table)
+            .where(~select(key).where(key == table.c.id).exists())
+        ).scalar()
+
+    has_track = select(activity_track.c.activity_id).where(
+        activity_track.c.activity_id == activity.c.id
+    )
+    return {
+        "countries": conn.execute(select(region_country).order_by(region_country.c.name)).all(),
+        "rides_untagged": untagged(activity, activity_region.c.activity_id),
+        "rides_no_gps": conn.execute(
+            select(func.count()).select_from(activity).where(~has_track.exists())
+        ).scalar(),
+        "routes_untagged": untagged(route, route_region.c.route_id),
+    }
+
+
+def _context(row) -> str:
+    """Where a region sits: nothing for a country, else its parent and country."""
+    if row.level == 0:
+        return ""
+    if row.level == 1 or row.parent_name == row.country_name:
+        return row.country_name
+    return f"{row.parent_name}, {row.country_name}"
+
+
+def region_labels(conn: Connection, ids: list[str]) -> dict[str, dict]:
+    if not ids:
+        return {}
+    parent, country = region.alias("parent"), region.alias("country_region")
+    rows = conn.execute(
+        select(
+            region.c.id,
+            region.c.name,
+            region.c.level,
+            region.c.type_label,
+            parent.c.name.label("parent_name"),
+            country.c.name.label("country_name"),
+        )
+        .select_from(
+            region.outerjoin(parent, parent.c.id == region.c.parent_id).outerjoin(
+                country, country.c.id == region.c.country
+            )
+        )
+        .where(region.c.id.in_(ids))
+    ).all()
+    return {
+        r.id: {
+            "id": r.id,
+            "name": r.name,
+            "level": r.level,
+            "type": r.type_label,
+            "context": _context(r),
+        }
+        for r in rows
+    }
+
+
+def region_filter(conn: Connection, state: FilterState) -> dict:
+    """The Region fieldset: selected regions first, then every loaded country."""
+    chosen = [v for v in state.values.get("region", []) if v != NO_REGION]
+    countries = conn.execute(
+        select(region.c.id).where(region.c.level == 0).order_by(region.c.name)
+    ).scalars()
+    ids = chosen + [c for c in countries if c not in chosen]
+    labels = region_labels(conn, ids)
+    return {
+        "shown": [labels[i] for i in ids if i in labels],
+        "loaded": bool(ids),
+        "none": NO_REGION in state.values.get("region", []),
+    }
+
+
+def region_counts(conn: Connection, state: FilterState, entity: str) -> dict[str, dict]:
+    counts = {}
+    if entity in ("rides", "both"):
+        counts["rides"] = facet_counts(conn, state, Entity.RIDES, activity, "region")
+    if entity in ("routes", "both"):
+        counts["routes"] = facet_counts(conn, state, Entity.ROUTES, route, "region")
+    return counts
+
+
+SUGGESTIONS = 12
+
+
+def search_regions(
+    conn: Connection, state: FilterState, term: str, entity: str, limit: int = SUGGESTIONS
+) -> tuple[list[dict], dict[str, dict]]:
+    """Regions whose name or a variant name has a word starting with the term (accents and
+    case ignored), exact names first, then the ones with the most rides/routes."""
+    term = term.strip().lower()[:80]
+    if not term:
+        return [], {}
+    escaped = re.sub(r"([^\w\s])", r"\\\1", term)
+    rows = conn.execute(
+        text(
+            """
+            SELECT id, search_key ~ ('\\|' || vt_unaccent(:escaped) || '\\|') AS exact
+            FROM region
+            WHERE search_key ~ ('[^[:alnum:]]' || vt_unaccent(:escaped))
+            ORDER BY exact DESC, level, name
+            LIMIT 200
+            """
+        ),
+        {"escaped": escaped},
+    ).all()
+    counts = region_counts(conn, state, entity)
+
+    def total(region_id):
+        return sum(c.get(region_id, 0) for c in counts.values())
+
+    ranked = sorted(rows, key=lambda r: (not r.exact, -total(r.id)))[:limit]
+    labels = region_labels(conn, [r.id for r in ranked])
+    return [labels[r.id] for r in ranked if r.id in labels], counts
+
+
+def region_outlines(conn: Connection, ids: list[str]) -> str:
+    """Selected regions for the map, simplified to ~1/2000 of their size."""
+    size = func.greatest(
+        func.ST_XMax(region.c.geometry) - func.ST_XMin(region.c.geometry),
+        func.ST_YMax(region.c.geometry) - func.ST_YMin(region.c.geometry),
+    )
+    return _feature_collection(
+        conn,
+        region,
+        region.c.id,
+        region.c.name,
+        func.ST_SimplifyPreserveTopology(region.c.geometry, size / 2000),
+        [region.c.id.in_(ids)],
+    )
+
+
+def _grouped_regions(rows) -> list[dict]:
+    """[{country, levels: [(label, [regions])]}] for the ride and route pages."""
+    countries: dict[str, dict] = {}
+    for r in rows:
+        group = countries.setdefault(r.country, {"country": None, "levels": {}})
+        if r.level == 0:
+            group["country"] = r
+        else:
+            group["levels"].setdefault(r.level, []).append(r)
+    grouped = []
+    for group in countries.values():
+        levels = []
+        for _, regions in sorted(group["levels"].items()):
+            labels = list(dict.fromkeys(r.type_label for r in regions))
+            levels.append((" / ".join(labels), regions))
+        grouped.append({"country": group["country"], "levels": levels})
+    return grouped
+
+
+def _entity_regions(conn: Connection, link, key, entity_id: int) -> list[dict]:
+    rows = conn.execute(
+        select(region.c.id, region.c.name, region.c.level, region.c.type_label, region.c.country)
+        .join(link, link.c.region_id == region.c.id)
+        .where(key == entity_id)
+        .order_by(region.c.country, region.c.level, func.lower(region.c.name))
+    ).all()
+    return _grouped_regions(rows)
+
+
+def ride_regions(conn: Connection, activity_id: int) -> list[dict]:
+    return _entity_regions(conn, activity_region, activity_region.c.activity_id, activity_id)
+
+
+def route_regions(conn: Connection, route_id: int) -> list[dict]:
+    return _entity_regions(conn, route_region, route_region.c.route_id, route_id)

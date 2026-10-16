@@ -101,6 +101,7 @@ def route_page(route_id: int, request: Request, conn: Connection = Depends(get_c
             "map": queries.route_map(conn, route_id),
             "profile": queries.route_profile(conn, route_id),
             "rides": queries.route_rides(conn, route_id),
+            "regions": queries.route_regions(conn, route_id),
             "files": queries.route_files(conn, route_id),
             "tags": queries.all_tags(conn),
             "sources": queries.all_sources(conn),

@@ -149,6 +149,71 @@ def cmd_routes_import_export(args) -> None:
     _print_report(report)
 
 
+def _region_reports(reports) -> None:
+    for r in reports:
+        levels = ", ".join(f"level {level}: {n}" for level, n in r.levels.items())
+        print(f"  {r.country} {r.name}: {r.regions} regions ({levels})")
+
+
+def _untagged() -> None:
+    from velotheque.db import get_engine
+    from velotheque.queries import region_status
+
+    with get_engine().connect() as conn:
+        status = region_status(conn)
+    print(
+        f"{status['rides_untagged']} rides and {status['routes_untagged']} routes "
+        "have no region (outside the loaded countries)"
+    )
+
+
+def cmd_regions_load(args) -> None:
+    from velotheque.config import get_settings
+    from velotheque.db import get_engine
+    from velotheque.regions import load
+
+    try:
+        reports = load(get_engine(), args.countries, get_settings().data_dir / "gadm")
+    except ValueError as err:
+        raise SystemExit(str(err)) from None
+    _region_reports(reports)
+    _untagged()
+
+
+def cmd_regions_reload(args) -> None:
+    from velotheque.config import get_settings
+    from velotheque.db import get_engine
+    from velotheque.regions import load, loaded_countries
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        countries = loaded_countries(conn)
+    if not countries:
+        raise SystemExit("no countries loaded yet; use `velotheque regions load FRA ESP …`")
+    _region_reports(load(engine, countries, get_settings().data_dir / "gadm"))
+    _untagged()
+
+
+def cmd_regions_remove(args) -> None:
+    from velotheque.db import get_engine
+    from velotheque.regions import remove
+
+    with get_engine().begin() as conn:
+        removed = remove(conn, args.countries)
+    print(f"removed {', '.join(removed) or 'nothing'}")
+
+
+def cmd_regions_list(args) -> None:
+    from velotheque.db import get_engine
+    from velotheque.queries import region_status
+
+    with get_engine().connect() as conn:
+        status = region_status(conn)
+    for c in status["countries"]:
+        print(f"  {c.country} {c.name}: {c.regions} regions, loaded {c.loaded_at:%Y-%m-%d}")
+    _untagged()
+
+
 def cmd_rebuild_derived(args) -> None:
     from velotheque.db import get_engine
     from velotheque.derive import rebuild_derived
@@ -218,6 +283,21 @@ def main(argv: list[str] | None = None) -> None:
     route_export.add_argument("zip", help="path to export_XXXX.zip")
     route_export.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
     route_export.set_defaults(func=cmd_routes_import_export)
+    regions = sub.add_parser(
+        "regions", help="GADM boundaries for the region filter"
+    ).add_subparsers(dest="regions_command", required=True)
+    region_load = regions.add_parser(
+        "load", help="load (or replace) countries: GADM codes (FRA ESP CHE) or .gpkg files"
+    )
+    region_load.add_argument("countries", nargs="+", help="three-letter codes or .gpkg paths")
+    region_load.set_defaults(func=cmd_regions_load)
+    regions.add_parser(
+        "reload", help="load every loaded country again (after a restore: not in the dump)"
+    ).set_defaults(func=cmd_regions_reload)
+    region_remove = regions.add_parser("remove", help="drop countries and their tags")
+    region_remove.add_argument("countries", nargs="+", help="three-letter codes")
+    region_remove.set_defaults(func=cmd_regions_remove)
+    regions.add_parser("list", help="loaded countries").set_defaults(func=cmd_regions_list)
     sub.add_parser("rebuild-derived", help="drop and rebuild derived tables").set_defaults(
         func=cmd_rebuild_derived
     )

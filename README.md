@@ -4,7 +4,7 @@
 
 A self-hosted explorer for my own Strava cycling history, running on a Raspberry Pi. It's single-user and read-only towards Strava.
 
-Milestones 1–3 and 5 (this version) cover:
+Milestones 1–3, 5 and 6 (this version) cover:
 - Strava OAuth and a resumable **Sync now** (activities, details, streams)
 - the Strava bulk export import, with photos
 - normalized rides and tracks
@@ -12,6 +12,7 @@ Milestones 1–3 and 5 (this version) cover:
 - a **Ride** page with a photo gallery
 - nightly backups of the database and photos to Proton Drive, a tested restore, and a backup indicator in the header
 - a **route library**: GPX import (upload form and CLI, race stages merged into one route), tags, how much of each route you've ridden, and routes on the Explore map
+- **regions**: GADM boundaries per country, every ride and route tagged with the regions it crosses, and a region filter with accent-insensitive place search
 
 Milestone 4 (components and maintenance) comes later.
 
@@ -31,7 +32,8 @@ The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress i
 |---|---|---|
 | Raw | `raw_strava_*`, `raw_export_activity`, `raw_gpx_file` | Append-only. A row is only added when the payload changed; GPX files are kept byte for byte, de-duplicated by hash. |
 | Normalized | `activity`, `activity_track`, `bike`; `route` geometry, km, m+ | Rebuilt from raw with `velotheque normalize` |
-| Derived | `activity_track_simplified`, `route_simplified`, `route_ride_overlap`, `route_coverage` | Rebuilt with `velotheque rebuild-derived` |
+| Reference | `region_country`, `region` | GADM boundaries, loaded per country with `velotheque regions load`. Only `region_country` (the list of countries) is in the nightly dump; `regions reload` brings the rest back. |
+| Derived | `activity_track_simplified`, `route_simplified`, `route_ride_overlap`, `route_coverage`, `region_part`, `activity_region`, `route_region` | Rebuilt with `velotheque rebuild-derived` |
 | Curated | `saved_view`; `route` name, source, tags, notes and its `route_file` list | Hand-entered, irreplaceable, in the nightly backup |
 
 ## Setup on the Pi
@@ -161,7 +163,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 
 - **One state everywhere:** all filters live in the URL, so every view can be bookmarked, the back button works, and a saved view is just a named query string.
 - **How filters combine:** values within one field are ORed, and different fields are ANDed.
-- **Counts:** the number next to each type, bike or photos option counts every other active filter except that field's own. It shows what ticking that option would give.
+- **Counts:** the number next to each type, bike, photos or region option counts every other active filter except that field's own. It shows what ticking that option would give.
 - **Selecting a ride:** click a row in the list (anywhere but its name) to highlight that ride and zoom the map to it, with all other rides still drawn. Click the row again to deselect. Clicking the name opens the ride page.
 - **Search** (`q`) matches the start of every word in the name and description, ignoring accents (`valencia` finds “València”). Names also get a typo-tolerant match (`galibeir` finds “Galibier”). There's no language stemming, because titles mix French, Spanish, Catalan and English.
 - **Reset filters** clears every filter but keeps the Rides / Routes / Both choice.
@@ -173,6 +175,23 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
   - **Reset map**: clears the map area and the selected ride, and zooms back to all results.
   - A ride matches if its track crosses the area. Panning on its own never filters.
 
+## Regions
+
+Rides and routes are tagged with every administrative region they cross, at every level (country, region/canton, department/province, …, municipality), from [GADM](https://gadm.org) 4.1 boundaries. GADM's licence is non-commercial, which fits personal use.
+
+```sh
+docker compose exec app velotheque regions load FRA ESP CHE   # three-letter ISO codes, as GADM uses
+docker compose exec app velotheque regions list               # loaded countries + how many rides have no region
+docker compose exec app velotheque regions remove DEU
+```
+
+- **Loading:** each country's GeoPackage is downloaded once into `$VELOTHEQUE_DATA_DIR/gadm/` (CHE 14 MB, ESP 33 MB, FRA 49 MB; some are much larger: GBR 431 MB). A local `.gpkg` path works too. Loading a country again replaces it, and lakes are skipped. FRA + ESP + CHE (52,000 regions) load in about 20 s on the Mac.
+- **Tagging:** a ride or route is tagged with each deepest-level region its track touches, plus all of that region's parents, so the levels always agree. Tags are redone on every sync and route import, and by `rebuild-derived`. Tagging all rides and routes takes about a second.
+- **Filter:** the Region box in Explore lists the loaded countries and the regions you picked, with counts (rides · routes in Both mode). **Find a place…** matches the start of any word of a region's name or GADM variant names, ignoring accents: `valencia` finds València, `genf` finds Genève. Picked regions are outlined on the map. **No region** shows what is outside the loaded countries, including rides without GPS.
+- **Pages:** ride and route pages list the regions crossed, by level; each name links to Explore filtered on it.
+- **Settings** lists the loaded countries and links to the rides and routes with no region, as a hint that a country is missing.
+- **Data quirks:** GADM 4.1 is from before the recent commune mergers in France and Switzerland, so some merged communes appear under their old names. Variant names are sometimes truncated or mis-encoded in GADM itself.
+
 ## Backup to Proton Drive
 
 > **A backup isn't trusted until a restore has been tested.** Run the restore test below after setting this up, and again from time to time.
@@ -180,7 +199,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 **Schedule:** a systemd timer runs every night at about 03:30.
 
 **Each run:**
-1. **Dump** (as root, only to reach Docker): `pg_dump -Fc` from the `db` container into `/var/lib/velotheque-backup/dumps/`. The archive is checked with `pg_restore --list` before anything is uploaded.
+1. **Dump** (as root, only to reach Docker): `pg_dump -Fc` from the `db` container into `/var/lib/velotheque-backup/dumps/`. The archive is checked with `pg_restore --list` before anything is uploaded. Region boundaries and their tags are left out: they can be downloaded again and would almost double the dump (+63 MB for FRA + ESP + CHE). The list of loaded countries is kept.
 2. **Upload** (as the unprivileged `velobackup` user, the only account holding the Proton session):
    - the dump to `Velotheque/db/velotheque-<UTC date>T<time>Z.dump`
    - photos and videos not yet in the local manifest (`photos-manifest.tsv`) to `Velotheque/photos/<activity>/`, in batches of 200. Thumbnails aren't uploaded; they're rebuilt after a restore.
@@ -256,6 +275,12 @@ sudo ops/restore.sh /var/lib/velotheque-backup/dumps/velotheque-2026-10-15T0330Z
 sudo ops/restore.sh --live /path/to/velotheque-….dump
 ```
 
+After restoring the live database, load the regions back (the dump only has the list of countries):
+
+```sh
+docker compose exec app velotheque regions reload
+```
+
 To restore photos, download the folder back, then rebuild the thumbnails and photo rows:
 
 ```sh
@@ -283,6 +308,8 @@ docker compose exec app velotheque routes import-library DIR [--separate SUBFOLD
 docker compose exec app velotheque routes import-export /data/imports/export_XXXX.zip
 docker compose exec app velotheque routes normalize  # recompute routes from their files (e.g. after an upgrade adds a field)
 docker compose exec app velotheque normalize         # rebuild normalized tables (rides and routes) from raw (--force-tracks re-parses export files)
+docker compose exec app velotheque regions load FRA ESP CHE   # or .gpkg files; see Regions
+docker compose exec app velotheque regions reload | list | remove CODE…
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables
 docker compose exec app velotheque backup-status --ok|--error MSG   # used by the backup service
 ```

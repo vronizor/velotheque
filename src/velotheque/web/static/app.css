@@ -98,6 +98,12 @@ code { font-size: 0.9em; background: var(--cream); padding: 0 4px; border-radius
 .search { width: 100%; font: inherit; padding: 6px 8px; margin: 4px 0 10px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
 .filters .count { float: right; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .filters .check.zero { color: var(--muted); opacity: 0.6; }
+.region-option { display: flex !important; gap: 4px; align-items: baseline; }
+.region-option > span:first-of-type { flex: 1; min-width: 0; }
+.region-option .muted { display: block; line-height: 1.2; }
+.region-option .count { margin-left: auto; }
+.region-search { width: 100%; font: inherit; padding: 4px 6px; margin-top: 6px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
+.region-suggestions:not(:empty) { margin-top: 4px; padding: 4px 0 0; border-top: 1px dashed var(--line); }
 .link-button { background: none; color: var(--red-dark) !important; padding: 0; font-size: 0.85rem; text-decoration: underline; }
 .link-button:hover { background: none; }
 .saved { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
@@ -184,6 +190,11 @@ tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 .lightbox button { background: rgb(0 0 0 / 0.5); font-size: 1.2rem; line-height: 1; }
 
 .ride-routes { margin: 16px 0; }
+.regions-crossed { margin: 16px 0; }
+.region-list { margin: 6px 0 10px; display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; }
+.region-list div { display: contents; }
+.region-list dt { color: var(--muted); font-size: 0.85rem; }
+.region-list dd { margin: 0; }
 .plain-list { list-style: none; padding: 0; margin: 0 0 12px; }
 .plain-list li { padding: 3px 0; }
 

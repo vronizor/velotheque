@@ -213,7 +213,11 @@ def test_route_import_page_edit_download_delete(client, db):
     on_map = client.get(f"/rides/{ride_id}/routes.geojson").json()["features"]
     assert [f["properties"]["name"] for f in on_map] == ["Renamed"]
     ridden = client.get(f"{route_url}/rides/{ride_id}.geojson").json()
-    assert ridden["type"] == "MultiLineString" and 'data-piece="' in client.get(route_url).text and 'data-piece="' in ride_page
+    assert (
+        ridden["type"] == "MultiLineString"
+        and 'data-piece="' in client.get(route_url).text
+        and 'data-piece="' in ride_page
+    )
     assert client.get(f"{route_url}/rides/987654.geojson").status_code == 404
 
     assert client.post(f"{route_url}/delete", follow_redirects=False).status_code == 303

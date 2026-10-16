@@ -1,7 +1,7 @@
 # Vélothèque — working notes for Claude
 
 - **What to build**: `velotheque-spec.md` (milestones, schema, VERIFY items). **Where we are**: `TODO.md` — the running checklist; update it as you work. **How it runs**: `README.md`.
-- Milestones 1–3 are done (plus the bulk-export import and the M2 features). Next per spec: 4 components/maintenance, 5 routes, 6 regions. Plan a milestone before coding it; each must leave the app usable.
+- Milestones 1–3, 5 (routes) and 6 (regions) are done. Next: 4 components/maintenance, after the data moves to the SSD. Plan a milestone before coding it; each must leave the app usable.
 - Where the spec says **VERIFY**, check against current docs or real data and report what you found (record it in TODO.md).
 
 ## Dev loop (Mac)

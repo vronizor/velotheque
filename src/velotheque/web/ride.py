@@ -24,6 +24,7 @@ def ride_page(activity_id: int, request: Request, conn: Connection = Depends(get
             "profile": queries.ride_profile(conn, activity_id),
             "photos": queries.ride_photos(conn, activity_id),
             "routes": queries.ride_routes(conn, activity_id),
+            "regions": queries.ride_regions(conn, activity_id),
             "map_style_url": get_settings().map_style_url,
         },
     )

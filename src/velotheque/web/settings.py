@@ -31,6 +31,7 @@ def settings_page(request: Request, conn: Connection = Depends(get_conn)):
             "missing_scopes": sorted(oauth.missing_scopes(auth.scope)) if auth else [],
             "jobs": jobs,
             "export": queries.export_status(conn, settings.sport_types),
+            "regions": queries.region_status(conn),
             "backup": backup.state(conn),
             "backups": backup.history(conn),
             "configured": bool(settings.strava_client_id and settings.strava_client_secret),

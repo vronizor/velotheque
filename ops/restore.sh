@@ -90,6 +90,7 @@ compose exec -T db sh -c 'pg_restore --exit-on-error --no-owner -U "$POSTGRES_US
 if [ "$LIVE" = 1 ]; then
   compose start app
   echo "live database restored; the app was restarted"
+  echo "regions aren't in the dump: run  docker compose exec app velotheque regions reload"
   exit 0
 fi
 

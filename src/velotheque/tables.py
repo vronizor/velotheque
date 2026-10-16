@@ -38,6 +38,8 @@ TZ = DateTime(timezone=True)
 MULTILINE = Geometry("MULTILINESTRING", srid=4326, spatial_index=False)
 # geoalchemy2 copies a column's nullability onto its type, so nullable columns need their own.
 OPTIONAL_MULTILINE = Geometry("MULTILINESTRING", srid=4326, spatial_index=False, nullable=True)
+MULTIPOLYGON = Geometry("MULTIPOLYGON", srid=4326, spatial_index=False)
+ANY_GEOMETRY = Geometry("GEOMETRY", srid=4326, spatial_index=False)
 SEARCH_TSV = (
     "to_tsvector('simple'::regconfig, "
     "vt_unaccent(coalesce(name, '') || ' ' || coalesce(description, '')))"
@@ -283,6 +285,43 @@ route_file = Table(
     UniqueConstraint("raw_gpx_file_id"),
 )
 
+# Reference: GADM boundaries, loaded per country by `velotheque regions load`. Re-downloadable,
+# so the nightly dump keeps region_country (what to reload) but not the region rows.
+
+region_country = Table(
+    "region_country",
+    metadata,
+    Column("country", Text, primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("source", Text, nullable=False),
+    Column("sha256", LargeBinary, nullable=False),
+    Column("regions", Integer, nullable=False),
+    Column("loaded_at", TZ, nullable=False, server_default=func.now()),
+)
+
+region = Table(
+    "region",
+    metadata,
+    # The GADM GID ("ESP.10.3.4.1_1"): stable across reloads, so it is what URLs carry.
+    Column("id", Text, primary_key=True),
+    Column(
+        "country",
+        Text,
+        ForeignKey("region_country.country", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("level", SmallInteger, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("alt_names", ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")),
+    Column("type_label", Text, nullable=False),
+    Column("parent_id", Text, ForeignKey("region.id", ondelete="CASCADE")),
+    # "|name|variant|…|", lower-cased and unaccented, for word-prefix search.
+    Column("search_key", Text, nullable=False),
+    Column("geometry", MULTIPOLYGON, nullable=False),
+    Index(None, "country"),
+    Index(None, "parent_id"),
+)
+
 # Derived: safe to truncate and rebuild
 
 activity_track_simplified = Table(
@@ -329,6 +368,34 @@ route_coverage = Table(
     Column("covered", OPTIONAL_MULTILINE),
 )
 
+# The deepest regions cut into small pieces, so a track only meets nearby vertices.
+region_part = Table(
+    "region_part",
+    metadata,
+    Column("region_id", Text, ForeignKey("region.id", ondelete="CASCADE"), nullable=False),
+    Column("geometry", ANY_GEOMETRY, nullable=False),
+    Index(None, "region_id"),
+    Index("ix_region_part_geometry", "geometry", postgresql_using="gist"),
+)
+
+activity_region = Table(
+    "activity_region",
+    metadata,
+    Column("activity_id", BigInteger, ForeignKey("activity.id", ondelete="CASCADE")),
+    Column("region_id", Text, ForeignKey("region.id", ondelete="CASCADE")),
+    PrimaryKeyConstraint("activity_id", "region_id"),
+    Index(None, "region_id"),
+)
+
+route_region = Table(
+    "route_region",
+    metadata,
+    Column("route_id", Integer, ForeignKey("route.id", ondelete="CASCADE")),
+    Column("region_id", Text, ForeignKey("region.id", ondelete="CASCADE")),
+    PrimaryKeyConstraint("route_id", "region_id"),
+    Index(None, "region_id"),
+)
+
 backup_status = Table(
     "backup_status",
     metadata,
@@ -353,4 +420,12 @@ saved_view = Table(
     UniqueConstraint("entity", "name"),
 )
 
-DERIVED_TABLES = (activity_track_simplified, route_simplified, route_ride_overlap, route_coverage)
+DERIVED_TABLES = (
+    activity_track_simplified,
+    route_simplified,
+    route_ride_overlap,
+    route_coverage,
+    region_part,
+    activity_region,
+    route_region,
+)

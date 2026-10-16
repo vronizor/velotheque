@@ -44,6 +44,8 @@
     <section class="description">{{ ride.description }}</section>
   {% endif %}
 
+  {% with explore = "/?" %}{% include "_regions_crossed.html" %}{% endwith %}
+
   {% if routes %}
     <details class="ride-routes collapsible" data-remember="ride-routes">
       <summary><h2>On routes <span class="muted">{{ routes|length }}</span></h2></summary>

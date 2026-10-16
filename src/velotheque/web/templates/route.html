@@ -41,6 +41,8 @@
     <p class="muted no-track">No track points in this route's files.</p>
   {% endif %}
 
+  {% with explore = "/?entity=routes&" %}{% include "_regions_crossed.html" %}{% endwith %}
+
   <div class="route-columns">
     <details class="collapsible" data-remember="route-rides" open>
       <summary><h2>Rides on this route <span class="muted">{{ rides|length }}</span></h2></summary>
