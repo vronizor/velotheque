@@ -32,7 +32,7 @@
   {% if map.line %}
     <div id="route-map" class="ride-map" data-style="{{ map_style_url }}"
          data-line='{{ map.line }}' data-covered='{{ map.covered or "null" }}' data-rides='{{ map.rides }}'></div>
-    <div class="resize-handle" data-resize="route-map" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to resize the map"></div>
+    <div class="resize-handle" data-resize="route-map" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to resize the map, double-click to reset"></div>
     <p class="muted small legend"><span class="key key-route"></span> route <span class="key key-covered"></span> ridden (within 30 m of a ride) <label class="check"><input type="checkbox" data-layer="rides" checked> <span class="key key-ride"></span> rides</label></p>
   {% else %}
     <p class="muted no-track">No track points in this route's files.</p>

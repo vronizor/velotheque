@@ -62,7 +62,9 @@ Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-
 - [x] Resizable ride and route maps (drag bar or ↑/↓, remembered per page kind); map/list splitter on Explore (`--map-share`, 15–85%), off on phones
 - [x] Elevation chart + synced hover (km, altitude, grade over ±100 m), hand-written SVG, ~1000 samples embedded in the page (≈30 KB); hovering the map track moves the chart cursor. Positions come from the track points (all 341 local tracks line up with their streams; fallback interpolates along the line)
 - [x] Owner request: "show the routes it rides" on the ride map (fetched on first tick from `/rides/{id}/routes.geojson`, overview lines) and "rides" toggle on the route map; both remembered
-- [ ] Idea (owner): link Strava routes to their Strava page. The export has no route id (`routes.csv` = name + `routes/N.gpx`, empty `<link>` in the GPX) and sync doesn't touch routes, so this needs `GET /athletes/{id}/routes` (needs the `read_all` scope for private routes; check the current token's scope) and a match on name + distance
+- [x] Owner request (gpx.studio-style): drag on the elevation chart to select a section → distance, gain/loss (JS port of the 10 m hysteresis), avg grade, yellow highlight on the map cut from the track at the exact distances, Zoom map / Clear / Esc
+- [x] Double-click a resize bar resets it to the default size
+- [-] Idea (owner): link Strava routes to their Strava page. The export has no route id (`routes.csv` = name + `routes/N.gpx`, empty `<link>` in the GPX) and sync doesn't touch routes, so this needs `GET /athletes/{id}/routes` (needs the `read_all` scope for private routes; check the current token's scope) and a match on name + distance. Owner: not needed (2026-10-16)
 - [ ] Descriptions show Strava mentions raw (`[strava://athletes/…]`); render them as the name only
 - [!] Photo markers: none of the 517 photos has EXIF GPS or capture time (Strava strips them; media.csv has only filename + caption). Also a spec non-goal. Only lead: undocumented API photo endpoint
 

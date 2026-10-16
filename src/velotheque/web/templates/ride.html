@@ -29,7 +29,7 @@
 
   {% if track %}
     <div id="ride-map" class="ride-map" data-style="{{ map_style_url }}" data-track='{{ track }}'></div>
-    <div class="resize-handle" data-resize="ride-map" role="separator" tabindex="0" aria-orientation="horizontal" title="Drag to resize the map"></div>
+    <div class="resize-handle" data-resize="ride-map" role="separator" tabindex="0" aria-orientation="horizontal" title="Drag to resize the map, double-click to reset"></div>
     {% if routes %}
       <p class="muted small legend"><label class="check"><input type="checkbox" data-layer="routes" data-url="/rides/{{ ride.id }}/routes.geojson"> <span class="key key-route"></span> show the route{{ "" if routes|length == 1 else "s" }} it rides ({{ routes|length }})</label></p>
     {% endif %}

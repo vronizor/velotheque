@@ -274,3 +274,8 @@ details.ride-routes > summary h2 { margin-block: 0.6em; }
 @media (max-width: 760px) {
   .results > .resize-handle { display: none; }
 }
+.profile { cursor: crosshair; }
+.profile .band { fill: rgb(242 183 5 / 0.28); stroke: #F2B705; stroke-width: 1; }
+.profile-selection { min-height: 1.6em; margin: 0 0 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.profile-selection strong { color: var(--ink); }
+.profile-selection .link-button { font-size: inherit; }

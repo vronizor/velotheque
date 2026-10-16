@@ -1,6 +1,6 @@
 "use strict";
 
-const COLORS = { ride: "#D63A2A", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412" };
+const COLORS = { ride: "#D63A2A", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412", selection: "#F2B705" };
 const SOURCES = ["routes", "rides"];
 const ACTIVE = [
   "any",
@@ -387,6 +387,14 @@ function initRide() {
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": COLORS.ride, "line-width": 4 },
     });
+    map.addSource("selection", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "selection",
+      type: "line",
+      source: "selection",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": COLORS.selection, "line-width": 7 },
+    });
     const first = track.coordinates[0][0];
     const last = track.coordinates.at(-1).at(-1);
     new maplibregl.Marker({ color: "#2f7d32", scale: 0.7 }).setLngLat(first).addTo(map);
@@ -399,7 +407,7 @@ function initRide() {
       paint: { "circle-radius": 6, "circle-color": COLORS.highlight, "circle-stroke-color": "#fff", "circle-stroke-width": 2 },
     });
   });
-  initProfile(map);
+  initProfile(map, track);
   initLayerToggles(map, "ride");
   document.body.addEventListener("syncFinished", () => window.location.reload());
 }
@@ -410,7 +418,66 @@ function niceStep(range, count) {
   return [1, 2, 5, 10].map((m) => m * power).find((s) => s >= raw);
 }
 
-function initProfile(map) {
+// Same rule as geo.elevation_gain: a climb counts once it rises 10 m above the last low and
+// ends with a 10 m drop, so noise doesn't add up. Loss is the gain of the reversed section.
+function elevationGain(alts, threshold = 10) {
+  let total = 0;
+  let low = alts[0];
+  let high = low;
+  let climbing = false;
+  for (const value of alts) {
+    if (climbing) {
+      if (value > high) high = value;
+      else if (high - value >= threshold) {
+        total += high - low;
+        [low, high, climbing] = [value, value, false];
+      }
+    } else if (value < low) low = high = value;
+    else if (value - low >= threshold) [climbing, high] = [true, value];
+  }
+  return total + (climbing ? high - low : 0);
+}
+
+function haversineKm([lng1, lat1], [lng2, lat2]) {
+  const rad = Math.PI / 180;
+  const h =
+    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
+  return 2 * 6371.0088 * Math.asin(Math.sqrt(h));
+}
+
+// The part of a MultiLineString between two distances (km from its start), cutting the
+// end segments so the highlight starts and stops where the chart selection does.
+function sliceLine(lines, from, to) {
+  const pieces = [];
+  let done = 0;
+  for (const line of lines) {
+    let piece = [];
+    for (let i = 1; i < line.length; i++) {
+      const [a, b] = [line[i - 1], line[i]];
+      const len = haversineKm(a, b);
+      const [start, end] = [done, done + len];
+      done = end;
+      if (end < from || start > to || !len) continue;
+      const at = (d) => {
+        const t = Math.min(1, Math.max(0, (d - start) / len));
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+      };
+      if (!piece.length) piece.push(at(from));
+      piece.push(at(Math.min(to, end)));
+    }
+    if (piece.length > 1) pieces.push(piece);
+  }
+  return { type: "MultiLineString", coordinates: pieces };
+}
+
+function lineLengthKm(lines) {
+  let total = 0;
+  for (const line of lines) for (let i = 1; i < line.length; i++) total += haversineKm(line[i - 1], line[i]);
+  return total;
+}
+
+function initProfile(map, track) {
   const el = document.getElementById("ride-profile");
   if (!el) return;
   const points = JSON.parse(el.dataset.profile); // [km, altitude, grade %, lng, lat]
@@ -425,7 +492,13 @@ function initProfile(map) {
   const altMin = Math.floor(low / altStep) * altStep;
   const altMax = Math.ceil((low + span) / altStep) * altStep;
   const tip = Object.assign(document.createElement("div"), { className: "profile-tip", hidden: true });
-  let svg, cursor, dot, x, y;
+  const info = Object.assign(document.createElement("div"), { className: "profile-selection small" });
+  const hint = "Drag across the chart to measure a section.";
+  // Stream distances and the drawn line's length differ a little; scale between them.
+  const trackScale = lineLengthKm(track.coordinates) / (km1 - km0 || 1);
+  let svg, cursor, dot, band, x, y;
+  let selection = null; // [from index, to index]
+  let dragFrom = null;
 
   function node(name, attrs, parent = svg) {
     const n = document.createElementNS(NS, name);
@@ -454,8 +527,53 @@ function initProfile(map) {
     const bottom = y(altMin);
     node("path", { class: "area", d: `${line}L${x(km1)},${bottom}L${x(km0)},${bottom}Z` });
     node("path", { class: "line", d: line });
+    band = node("rect", { class: "band", y: pad.top - 4, height: bottom - pad.top + 4, visibility: "hidden" });
     cursor = node("line", { class: "cursor", y1: pad.top - 4, y2: bottom, visibility: "hidden" });
     dot = node("circle", { class: "dot", r: 4, visibility: "hidden" });
+    drawBand();
+  }
+
+  function drawBand() {
+    if (!band) return;
+    if (!selection) return band.setAttribute("visibility", "hidden");
+    const [a, b] = selection.map((i) => x(points[i][0]));
+    band.setAttribute("x", Math.min(a, b));
+    band.setAttribute("width", Math.abs(b - a));
+    band.setAttribute("visibility", "visible");
+  }
+
+  function select(range) {
+    selection = range && Math.abs(range[1] - range[0]) >= 2 ? [...range].sort((a, b) => a - b) : null;
+    drawBand();
+    if (!selection) {
+      info.replaceChildren(hint);
+      map.getSource("selection")?.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+    const part = points.slice(selection[0], selection[1] + 1);
+    const [from, to] = [part[0][0], part.at(-1)[0]];
+    const alts = part.map((p) => p[1]);
+    const up = elevationGain(alts);
+    const down = elevationGain([...alts].reverse());
+    const grade = ((alts.at(-1) - alts[0]) / ((to - from) * 1000)) * 100;
+    const stat = (text) => Object.assign(document.createElement("strong"), { textContent: text });
+    const button = (text, action) => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className: "link-button", textContent: text });
+      b.addEventListener("click", action);
+      return b;
+    };
+    const line = sliceLine(track.coordinates, (from - km0) * trackScale, (to - km0) * trackScale);
+    info.replaceChildren(
+      stat(`${(to - from).toFixed(2)} km`), " · ↗ ", stat(`${Math.round(up)} m`), " ↘ ", stat(`${Math.round(down)} m`),
+      ` · avg ${grade > 0 ? "+" : ""}${grade.toFixed(1)} % · km ${from.toFixed(1)}–${to.toFixed(1)} `,
+      button("Zoom map", () => {
+        const bounds = lineBounds([line]);
+        if (bounds) map.fitBounds(bounds, { padding: 40 });
+      }),
+      " ",
+      button("Clear", () => select(null)),
+    );
+    map.getSource("selection")?.setData(line);
   }
 
   function show(i) {
@@ -490,15 +608,42 @@ function initProfile(map) {
     return lo > 0 && km - points[lo - 1][0] < points[lo][0] - km ? lo - 1 : lo;
   }
 
-  el.append(tip);
-  draw();
-  new ResizeObserver(draw).observe(el);
-  el.addEventListener("pointermove", (e) => {
+  const indexAtPointer = (e) => {
     const px = e.clientX - el.getBoundingClientRect().left;
     const width = el.clientWidth - pad.left - pad.right;
-    show(indexAt(km0 + ((px - pad.left) / width) * (km1 - km0)));
+    return indexAt(km0 + ((px - pad.left) / width) * (km1 - km0));
+  };
+
+  el.append(tip);
+  el.after(info);
+  info.replaceChildren(hint);
+  draw();
+  new ResizeObserver(draw).observe(el);
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    el.setPointerCapture(e.pointerId);
+    dragFrom = indexAtPointer(e);
   });
-  el.addEventListener("pointerleave", hide);
+  el.addEventListener("pointermove", (e) => {
+    const i = indexAtPointer(e);
+    show(i);
+    if (dragFrom === null) return;
+    selection = [Math.min(dragFrom, i), Math.max(dragFrom, i)];
+    drawBand();
+  });
+  const endDrag = (e) => {
+    if (dragFrom === null) return;
+    const range = [dragFrom, indexAtPointer(e)];
+    dragFrom = null;
+    select(range);
+  };
+  el.addEventListener("pointerup", endDrag);
+  el.addEventListener("pointercancel", () => {
+    dragFrom = null;
+    select(selection);
+  });
+  el.addEventListener("pointerleave", () => dragFrom === null && hide());
+  document.addEventListener("keydown", (e) => e.key === "Escape" && selection && select(null));
   map.on("mousemove", "track", (e) => {
     const { lng, lat } = e.lngLat;
     const k = Math.cos((lat * Math.PI) / 180) ** 2;
@@ -518,6 +663,7 @@ const RESIZE_KEY = "velotheque.resize.";
 function storage(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
+    if (value === null) return localStorage.removeItem(key);
     localStorage.setItem(key, value);
   } catch {
     return null;
@@ -569,6 +715,13 @@ function initResizers() {
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", up, { once: true });
     handle.addEventListener("pointercancel", up, { once: true });
+  });
+  document.addEventListener("dblclick", (e) => {
+    const handle = e.target.closest?.("[data-resize]");
+    if (!handle) return;
+    if (handle.dataset.resize === "explore-split") explore.style.removeProperty("--map-share");
+    else document.getElementById(handle.dataset.resize).style.removeProperty("height");
+    storage(`${RESIZE_KEY}${handle.dataset.resize === "explore-split" ? "explore" : handle.dataset.resize}`, null);
   });
   document.addEventListener("keydown", (e) => {
     const handle = e.target.closest?.("[data-resize]");
