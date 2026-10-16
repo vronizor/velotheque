@@ -8,7 +8,7 @@ from sqlalchemy import select, text
 from velotheque.derive import derive_activities, rebuild_derived
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
 from velotheque.geo import elevation_gain
-from velotheque.routes import import_export_routes, import_files
+from velotheque.routes import clean_source, import_export_routes, import_files
 from velotheque.tables import activity, route, route_coverage, route_file, route_ride_overlap
 from velotheque.trackfiles import parse_route_file
 
@@ -165,7 +165,7 @@ def test_strava_export_routes_skip_running_and_tag_mtb(conn, tmp_path):
     assert [name for _, name in report.created] == ["Trail loop"]
     assert report.skipped == [("routes/2.gpx", "running route")]
     found = conn.execute(select(route.c.source, route.c.tags)).one()
-    assert found == ("strava", ["mtb"])
+    assert found == ("Strava", ["mtb"])
 
 
 # Overlap and coverage on synthetic geometries
@@ -230,7 +230,7 @@ def test_route_filters(conn):
     b = add_route(conn, east(10, north_m=5000), name="Bocage")
     c = add_route(conn, east(10, north_m=10_000), name="Causses")
     conn.execute(route.update().where(route.c.id == a).values(tags=["race", "gravel"]))
-    conn.execute(route.update().where(route.c.id == b).values(tags=["gravel"], source="strava"))
+    conn.execute(route.update().where(route.c.id == b).values(tags=["gravel"], source="Strava"))
     ride = add_ride(conn, 1, east(8, north_m=10))
 
     assert _ids(conn, route, Entity.ROUTES, [("tag", "race"), ("tag", "gravel")]) == [a, b]
@@ -255,3 +255,12 @@ def test_ride_only_filters_leave_routes_alone(conn):
 def test_gzipped_gpx_is_accepted(conn):
     report = import_files(conn, [("a.gpx.gz", gzip.compress(gpx(east(2))))])
     assert len(report.created) == 1
+
+
+def test_source_is_free_text_but_reuses_spellings(conn):
+    assert clean_source(conn, "  strava ") == "Strava"
+    assert clean_source(conn, "") == "file"
+    route_id = add_route(conn, east(2))
+    conn.execute(route.update().where(route.c.id == route_id).values(source="Komoot"))
+    assert clean_source(conn, "KOMOOT") == "Komoot"
+    assert clean_source(conn, "x" * 50) == "x" * 40

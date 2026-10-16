@@ -52,6 +52,7 @@ Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-
 - [x] Real data locally: 36 library routes (5 races merged from stages) + 52 Strava routes (15 byte-identical duplicates skipped, 10 running skipped); import ~0.5 s/route, rebuild 18 s on the Mac; routes GeoJSON 0.62 MB gz; headless check of Explore (routes/both/tag filter/selection), route pages, import form, ride page, phone
 - [x] README
 - [ ] Deploy to the Pi + import there (owner)
+- [x] Owner feedback (2026-10-16): source is free text (migration 0006 drops the check, renames to `Strava` / `gpx.studio`; reuses an existing spelling case-insensitively; suggestions in a datalist), editable on the route page, badge on every route; bulk edit from the Explore list (tick routes → set source, add/remove tags); "On routes" on the ride page collapsible (closed by default)
 - Notes: the Strava export has near-duplicate routes (same name, slightly different files) → both kept; delete one in the UI. Names come from the GPX (some are file-ish codes): editable on the route page.
 
 ## After M5: Strava-style ride page (study done 2026-10-16)

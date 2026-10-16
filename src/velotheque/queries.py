@@ -5,6 +5,7 @@ from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column,
 from velotheque.exportrow import gear_id, sport_type
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
 from velotheque.tables import (
+    ROUTE_SOURCES,
     activity,
     activity_photo,
     activity_track_simplified,
@@ -321,6 +322,20 @@ def route_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
 def all_tags(conn: Connection) -> list[str]:
     tags = select(func.unnest(route.c.tags).label("tag")).distinct().subquery()
     return conn.execute(select(tags.c.tag).order_by(func.lower(tags.c.tag))).scalars().all()
+
+
+def all_sources(conn: Connection, suggestions: bool = True) -> list[str]:
+    """Sources in use, then (as suggestions) the built-in ones not used yet."""
+    sources = select(route.c.source).distinct().subquery()
+    used = (
+        conn.execute(select(sources.c.source).order_by(func.lower(sources.c.source)))
+        .scalars()
+        .all()
+    )
+    if not suggestions:
+        return list(used)
+    lowered = {s.lower() for s in used}
+    return [*used, *(s for s in ROUTE_SOURCES if s.lower() not in lowered)]
 
 
 def route_detail(conn: Connection, route_id: int):

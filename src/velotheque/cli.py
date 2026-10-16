@@ -5,8 +5,6 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
-from velotheque.tables import ROUTE_SOURCES
-
 MIGRATIONS = Path(__file__).parent / "migrations"
 
 
@@ -170,7 +168,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     route_import.add_argument("--name", help="route name (default: from the file or folder)")
     route_import.add_argument(
-        "--source", default="file", choices=ROUTE_SOURCES, help="where the route comes from"
+        "--source", default="file", help="where the route comes from (free text)"
     )
     route_import.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
     route_import.set_defaults(func=cmd_routes_import)

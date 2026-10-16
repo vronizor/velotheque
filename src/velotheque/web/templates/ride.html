@@ -38,8 +38,8 @@
   {% endif %}
 
   {% if routes %}
-    <section class="ride-routes">
-      <h2>On routes <span class="muted">{{ routes|length }}</span></h2>
+    <details class="ride-routes">
+      <summary><h2>On routes <span class="muted">{{ routes|length }}</span></h2></summary>
       <ul class="plain-list">
         {% for r in routes %}
           <li><a href="/routes/{{ r.id }}">{{ r.name }}</a>
@@ -47,7 +47,7 @@
             {% for t in r.tags %}<span class="tag">{{ t }}</span> {% endfor %}</li>
         {% endfor %}
       </ul>
-    </section>
+    </details>
   {% endif %}
 
   {% if photos %}

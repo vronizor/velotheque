@@ -8,7 +8,6 @@ from velotheque import queries
 from velotheque.config import get_settings
 from velotheque.filters import FilterState
 from velotheque.queries import DEFAULT_ROUTE_SORT, DEFAULT_SORT, ROUTE_SORTS, Sort
-from velotheque.tables import ROUTE_SOURCES
 from velotheque.web.deps import get_conn, templates
 
 router = APIRouter()
@@ -27,8 +26,6 @@ ROUTE_SORT_COLUMNS = [
     ("coverage", "Ridden"),
 ]
 ENTITIES = ("rides", "routes", "both")
-SOURCE_LABELS = {"strava": "Strava", "gpx_studio": "gpx.studio", "file": "GPX file"}
-assert set(SOURCE_LABELS) == set(ROUTE_SOURCES)
 
 
 def _state(request: Request) -> FilterState:
@@ -71,7 +68,6 @@ def results_context(
         "rsort": rsort,
         "sort_columns": SORT_COLUMNS,
         "route_sort_columns": ROUTE_SORT_COLUMNS,
-        "source_labels": SOURCE_LABELS,
         "limit": queries.LIST_LIMIT,
         "on_route": [
             (raw, value, queries.route_name(conn, value[0]))
@@ -102,6 +98,8 @@ def results_context(
         context.update(
             route_facets=queries.route_facets(conn, state),
             tags=queries.all_tags(conn),
+            sources=queries.all_sources(conn, suggestions=False),
+            source_suggestions=queries.all_sources(conn),
             route_rows=queries.route_rows(conn, state, rsort),
             route_totals=route_totals,
             routes_geojson_url="/explore/routes.geojson" + (f"?{query}" if query else ""),

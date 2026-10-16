@@ -12,7 +12,7 @@ from alembic import op
 from geoalchemy2 import Geometry
 from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 
-from velotheque.tables import ROUTE_SEARCH_TSV, ROUTE_SOURCES
+from velotheque.tables import ROUTE_SEARCH_TSV
 
 revision: str = "0005"
 down_revision: str | None = "0004"
@@ -47,7 +47,7 @@ def upgrade() -> None:
         sa.Column("distance_m", sa.Double, nullable=False, server_default=sa.text("0")),
         sa.Column("elevation_gain_m", sa.Double),
         sa.Column("search_tsv", TSVECTOR, sa.Computed(ROUTE_SEARCH_TSV, persisted=True)),
-        sa.CheckConstraint(f"source IN {ROUTE_SOURCES}", name="source"),
+        sa.CheckConstraint("source IN ('strava', 'gpx_studio', 'file')", name="source"),
     )
     op.create_index("ix_route_geometry", "route", ["geometry"], postgresql_using="gist")
     op.create_index("ix_route_search_tsv", "route", ["search_tsv"], postgresql_using="gin")

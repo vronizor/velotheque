@@ -339,7 +339,7 @@ function initExplore() {
       return;
     }
     const row = e.target.closest?.("#results tr[data-id]");
-    if (!row || e.target.closest("a, button, input, label") || !map.getSource("rides")) return;
+    if (!row || e.target.closest("a, button, input, label, .col-pick") || !map.getSource("rides")) return;
     const target = { source: row.dataset.entity, id: Number(row.dataset.id) };
     setSelected(same(selected, target) ? null : target, !same(selected, target));
   });
@@ -467,6 +467,33 @@ function initTagSuggestions() {
   );
 }
 
+function initBulkEdit() {
+  const picks = () => [...document.querySelectorAll("#results input[name='ids']")];
+  const refresh = () => {
+    const form = document.getElementById("bulk");
+    if (!form) return;
+    const n = picks().filter((c) => c.checked).length;
+    form.hidden = n === 0;
+    form.querySelector(".bulk-count").textContent = `${n} route${n === 1 ? "" : "s"} selected`;
+    const all = document.querySelector("#results [data-action='bulk-all']");
+    if (all) {
+      all.checked = n > 0 && n === picks().length;
+      all.indeterminate = n > 0 && n < picks().length;
+    }
+  };
+  document.addEventListener("change", (e) => {
+    if (e.target.matches?.("#results [data-action='bulk-all']")) {
+      picks().forEach((c) => (c.checked = e.target.checked));
+      refresh();
+    } else if (e.target.matches?.("#results input[name='ids']")) refresh();
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.("[data-action='bulk-clear']")) return;
+    picks().forEach((c) => (c.checked = false));
+    refresh();
+  });
+}
+
 function initLightbox() {
   const dialog = document.getElementById("lightbox");
   if (!dialog) return;
@@ -499,5 +526,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initRide();
   initRoute();
   initTagSuggestions();
+  initBulkEdit();
   initLightbox();
 });

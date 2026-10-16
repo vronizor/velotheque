@@ -230,3 +230,15 @@ a.tag { text-decoration: none; }
   .totals { flex-wrap: wrap; gap: 12px; }
   .route-columns { grid-template-columns: 1fr; }
 }
+
+.tag-source { background: transparent; border: 1px solid var(--line); text-decoration: none; }
+th.col-pick, td.col-pick { width: 1.5rem; padding-right: 0; }
+.bulk { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: var(--cream); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+.bulk[hidden] { display: none; }
+.bulk input[type="text"] { font: inherit; font-size: 0.9rem; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; width: 9rem; }
+.bulk-count { font-size: 0.9rem; margin-right: 4px; }
+details.ride-routes > summary { cursor: pointer; list-style: none; }
+details.ride-routes > summary::-webkit-details-marker { display: none; }
+details.ride-routes > summary h2 { display: inline; }
+details.ride-routes > summary h2::before { content: "▸ "; color: var(--muted); }
+details.ride-routes[open] > summary h2::before { content: "▾ "; }

@@ -17,9 +17,21 @@
   </div>
   <div class="table-wrap">
     {% if show_routes %}
+    <form id="bulk" class="bulk" method="post" action="/routes/bulk" hidden>
+      <input type="hidden" name="next" value="{{ link() }}">
+      <strong class="bulk-count"></strong>
+      <input type="text" name="source" list="bulk-sources" placeholder="Set source" aria-label="Set source" autocomplete="off">
+      <input type="text" name="add_tags" list="bulk-tags" placeholder="Add tags" aria-label="Add tags (comma-separated)" autocomplete="off">
+      <input type="text" name="remove_tags" list="bulk-tags" placeholder="Remove tags" aria-label="Remove tags (comma-separated)" autocomplete="off">
+      <button type="submit">Apply</button>
+      <button type="button" class="link-button" data-action="bulk-clear">Clear</button>
+      <datalist id="bulk-sources">{% for s in source_suggestions %}<option value="{{ s }}">{% endfor %}</datalist>
+      <datalist id="bulk-tags">{% for t in tags %}<option value="{{ t }}">{% endfor %}</datalist>
+    </form>
     <table class="routes" data-entity="routes">
       <thead>
         <tr>
+          <th class="col-pick"><input type="checkbox" data-action="bulk-all" aria-label="Select all listed routes"></th>
           {% for key, label in route_sort_columns %}
             <th class="col-{{ key }}">
               <a hx-get="{{ link(rsort=rsort.toggled(key)) }}" hx-target="#results" hx-swap="outerHTML" hx-push-url="true"
@@ -34,14 +46,15 @@
       <tbody>
         {% for r in route_rows %}
           <tr data-id="{{ r.id }}" data-entity="routes">
-            <td class="col-name"><a href="/routes/{{ r.id }}">{{ r.name }}</a>{% if r.source == "strava" %} <span class="tag">Strava</span>{% endif %}</td>
+            <td class="col-pick"><input type="checkbox" name="ids" value="{{ r.id }}" form="bulk" aria-label="Select {{ r.name }}"></td>
+            <td class="col-name"><a href="/routes/{{ r.id }}">{{ r.name }}</a> <span class="tag tag-source">{{ r.source }}</span></td>
             <td class="col-distance num">{{ r.distance_m | km }}</td>
             <td class="col-elevation num">{{ r.elevation_gain_m | whole if r.elevation_gain_m is not none else "–" }}</td>
             <td class="col-coverage num">{{ r.coverage_fraction | percent }}</td>
             <td class="col-tags">{% for t in r.tags %}<span class="tag">{{ t }}</span> {% endfor %}</td>
           </tr>
         {% else %}
-          <tr><td colspan="5" class="muted empty">No routes match these filters.{% if not state.active %} <a href="/routes/import">Import GPX files</a>.{% endif %}</td></tr>
+          <tr><td colspan="6" class="muted empty">No routes match these filters.{% if not state.active %} <a href="/routes/import">Import GPX files</a>.{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

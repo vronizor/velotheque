@@ -21,9 +21,11 @@
 
   <fieldset>
     <legend>Route source</legend>
-    {% for value, label in source_labels.items() %}
+    {% for value in sources %}
       {% set n = route_facets.source.get(value, 0) %}
-      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="source" value="{{ value }}" form="filters" {% if state.has('source', value) %}checked{% endif %}> {{ label }} <span class="count">{{ n }}</span></label>
+      <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="source" value="{{ value }}" form="filters" {% if state.has('source', value) %}checked{% endif %}> {{ value }} <span class="count">{{ n }}</span></label>
+    {% else %}
+      <p class="muted small">No routes yet.</p>
     {% endfor %}
   </fieldset>
   {% endif %}

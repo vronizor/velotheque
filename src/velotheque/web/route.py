@@ -2,14 +2,13 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
-from sqlalchemy import Connection, delete, update
+from sqlalchemy import Connection, delete, select, update
 
 from velotheque import queries
 from velotheque.config import get_settings
-from velotheque.routes import clean_tags, import_files
-from velotheque.tables import ROUTE_SOURCES, route
+from velotheque.routes import clean_source, clean_tags, import_files
+from velotheque.tables import route
 from velotheque.web.deps import get_conn, templates
-from velotheque.web.explore import SOURCE_LABELS
 
 router = APIRouter()
 
@@ -25,7 +24,7 @@ def _import_page(request: Request, conn: Connection, report=None, error=None):
         {
             "report": report,
             "error": error,
-            "sources": SOURCE_LABELS,
+            "sources": queries.all_sources(conn),
             "tags": queries.all_tags(conn),
         },
     )
@@ -47,8 +46,6 @@ async def import_upload(
     conn: Connection = Depends(get_conn),
 ):
     uploads = [(f.filename or "upload.gpx", await f.read()) for f in files if f.filename]
-    if source not in ROUTE_SOURCES:
-        source = "file"
     if not uploads:
         return _import_page(request, conn, error="Choose at least one file")
     if merge and len(uploads) > 1 and not name.strip():
@@ -60,6 +57,30 @@ async def import_upload(
     if len(report.created) == 1 and not report.skipped:
         return RedirectResponse(f"/routes/{report.created[0][0]}", status_code=303)
     return _import_page(request, conn, report=report)
+
+
+def _back(next_url: str) -> str:
+    return next_url if next_url.startswith("/") and not next_url.startswith("//") else "/"
+
+
+@router.post("/routes/bulk")
+def routes_bulk(
+    ids: list[int] = Form(...),
+    source: str = Form(""),
+    add_tags: str = Form(""),
+    remove_tags: str = Form(""),
+    next_url: str = Form("/?entity=routes", alias="next"),
+    conn: Connection = Depends(get_conn),
+):
+    """Set the source and add or remove tags on the routes ticked in the Explore list."""
+    added = _tags(add_tags)
+    removed = {t.lower() for t in _tags(remove_tags)}
+    values = {"source": clean_source(conn, source)} if source.strip() else {}
+    for route_id, tags in conn.execute(select(route.c.id, route.c.tags).where(route.c.id.in_(ids))):
+        kept = [t for t in clean_tags([*tags, *added]) if t.lower() not in removed]
+        conn.execute(update(route).where(route.c.id == route_id).values(**values, tags=kept))
+    conn.commit()
+    return RedirectResponse(_back(next_url), status_code=303)
 
 
 def _route_or_404(conn: Connection, route_id: int):
@@ -81,7 +102,7 @@ def route_page(route_id: int, request: Request, conn: Connection = Depends(get_c
             "rides": queries.route_rides(conn, route_id),
             "files": queries.route_files(conn, route_id),
             "tags": queries.all_tags(conn),
-            "sources": SOURCE_LABELS,
+            "sources": queries.all_sources(conn),
             "map_style_url": get_settings().map_style_url,
             "message": request.query_params.get("message"),
         },
@@ -92,13 +113,18 @@ def route_page(route_id: int, request: Request, conn: Connection = Depends(get_c
 def route_save(
     route_id: int,
     name: str = Form(...),
+    source: str = Form(""),
     notes: str = Form(""),
     tags: str = Form(""),
     conn: Connection = Depends(get_conn),
 ):
     _route_or_404(conn, route_id)
     name = name.strip()[:200]
-    values = {"notes": notes.strip() or None, "tags": _tags(tags)}
+    values = {
+        "notes": notes.strip() or None,
+        "tags": _tags(tags),
+        "source": clean_source(conn, source),
+    }
     if name:
         values["name"] = name
     conn.execute(update(route).where(route.c.id == route_id).values(**values))

@@ -5,7 +5,7 @@ from sqlalchemy import exists, func, or_, select
 
 from velotheque.filters.registry import Entity, Field, register
 from velotheque.geo import decode_polyline, polygon_wkt
-from velotheque.tables import ROUTE_SOURCES, activity_track, route_coverage, route_ride_overlap
+from velotheque.tables import ROUTE_SOURCE_MAX, activity_track, route_coverage, route_ride_overlap
 
 RIDES = frozenset({Entity.RIDES})
 ROUTES = frozenset({Entity.ROUTES})
@@ -182,8 +182,8 @@ def _tag(value: str) -> str:
 
 
 def _source(value: str) -> str:
-    if value not in ROUTE_SOURCES:
-        raise ValueError(value)
+    if len(value) > ROUTE_SOURCE_MAX:
+        raise ValueError("source too long")
     return value
 
 

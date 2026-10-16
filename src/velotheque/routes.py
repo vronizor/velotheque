@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from velotheque.derive import derive_routes
 from velotheque.geo import elevation_gain
-from velotheque.tables import ROUTE_SOURCES, raw_gpx_file, route, route_file
+from velotheque.tables import ROUTE_SOURCE_MAX, ROUTE_SOURCES, raw_gpx_file, route, route_file
 from velotheque.trackfiles import RouteData, parse_route_file
 
 ROUTE_SUFFIXES = (".gpx", ".tcx", ".fit")
@@ -40,6 +40,14 @@ def clean_tags(tags) -> list[str]:
         if tag and tag.lower() not in (t.lower() for t in out):
             out.append(tag)
     return out
+
+
+def clean_source(conn: Connection, value: str | None) -> str:
+    """Free text, but reuses an existing or built-in spelling so "strava" and "Strava" don't
+    become two sources."""
+    value = " ".join((value or "").split())[:ROUTE_SOURCE_MAX] or "file"
+    known = [*conn.execute(select(route.c.source).distinct()).scalars(), *ROUTE_SOURCES]
+    return next((s for s in known if s.lower() == value.lower()), value)
 
 
 def store_file(conn: Connection, filename: str, content: bytes) -> int:
@@ -117,8 +125,7 @@ def create_route(
 ) -> int | None:
     """One route from one file, or from several stage files kept in natural filename order.
     A file already used by a route is skipped, so re-importing never duplicates."""
-    if source not in ROUTE_SOURCES:
-        raise ValueError(f"unknown source {source!r}")
+    source = clean_source(conn, source)
     files = sorted(files, key=lambda f: natural_key(PurePath(f[0]).name))
     kept, datas = [], []
     for filename, content in files:
@@ -217,7 +224,7 @@ def import_export_routes(conn: Connection, zip_path: Path, tags=()) -> ImportRep
                 conn,
                 [(member, content)],
                 name=route_name,
-                source="strava",
+                source="Strava",
                 tags=tags,
                 report=report,
             )

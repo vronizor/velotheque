@@ -192,9 +192,11 @@ def test_route_import_page_edit_download_delete(client, db):
     assert "Show these 2 rides in Explore" in page.text
 
     saved = client.post(
-        route_url, data={"name": "Renamed", "tags": "gravel,  race ", "notes": "nice"}
+        route_url,
+        data={"name": "Renamed", "tags": "gravel,  race ", "notes": "nice", "source": " Komoot"},
     )
     assert "Renamed" in saved.text and "Saved" in saved.text
+    assert ">Komoot</a>" in saved.text
 
     file_link = page.text.split(f'href="{route_url}/files/')[1].split('"')[0]
     download = client.get(f"{route_url}/files/{file_link}")
@@ -228,3 +230,29 @@ def test_explore_routes_and_both(client):
     on_route = client.get(f"/?overlaps_route={collection['features'][0]['id']}:0")
     assert "Sierra leg" in on_route.text and "Ride 2" in on_route.text
     assert client.get("/routes/import").status_code == 200
+
+
+def test_bulk_edit_sets_source_and_tags(client):
+    _upload(client, ("a.gpx", ROUTE_GPX), tags="race, old")
+    _upload(client, ("b.gpx", ROUTE_GPX + b" "), source="Strava")
+    ids = [f["id"] for f in client.get("/explore/routes.geojson").json()["features"]]
+    response = client.post(
+        "/routes/bulk",
+        data={
+            "ids": ids,
+            "source": "file",
+            "add_tags": "Race, gravel",
+            "remove_tags": "OLD",
+            "next": "/?entity=routes&tag=race",
+        },
+        follow_redirects=False,
+    )
+    assert response.headers["location"] == "/?entity=routes&tag=race"
+    page = client.get("/?entity=routes&source=file&tag=gravel")
+    assert page.text.count('name="ids"') == 2 and ">old<" not in page.text
+    assert (
+        client.post(
+            "/routes/bulk", data={"ids": ids[:1], "next": "//evil.example"}, follow_redirects=False
+        ).headers["location"]
+        == "/"
+    )

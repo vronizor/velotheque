@@ -132,7 +132,7 @@ Strava's API has no documented endpoint that lists every photo of an activity. S
 
 ## Routes
 
-A route is a GPX file (or several merged ones) that you keep for inspiration. Each one has a name, a source (`strava`, `gpx_studio` or `file`), free-form tags and notes. There's no to-do status: how much of a route you've ridden is computed from your rides.
+A route is a GPX file (or several merged ones) that you keep for inspiration. Each one has a name, a source (free text, e.g. `Strava`, `gpx.studio`, `file`, `Komoot`), free-form tags and notes. There's no to-do status: how much of a route you've ridden is computed from your rides.
 
 **Importing.** Use **Routes → + Import GPX** in the app: choose several files at once; tick “Merge” to turn the stages of a race into one route (they're ordered by file name, `s2` before `s10`). Or use the CLI:
 
@@ -144,7 +144,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 
 - GPX tracks (`<trk>`) and routes (`<rte>`) are read; `.tcx` and `.fit` also work, gzipped or not. Each track in a file stays its own piece, so a file with one track per stage doesn't count the jumps between stages as distance. A file with several tracks is named after its metadata or its file name.
 - The files are stored in the database exactly as uploaded (so the nightly backup has them) and can be downloaded from the route page. A file that is already part of a route is skipped, so imports can be re-run safely; deleting a route keeps its files, and re-importing them brings it back.
-- Strava export routes come in with `source = strava`, so one tick hides them; running routes are skipped and mountain-biking routes get the `mtb` tag.
+- Strava export routes come in with `source = Strava`, so one tick hides them; running routes are skipped and mountain-biking routes get the `mtb` tag.
 - Elevation gain counts a climb once it rises 10 m, which matched Strava's totals on 330 real rides (median ratio 0.997). Files without elevations show “–”.
 
 **Ridden.** A stretch of route counts as ridden when it lies within 30 m of a ride's track; stretches under 100 m (road crossings) are ignored.
@@ -152,7 +152,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 - Both are measured on the route's distinct roads: an out-and-back stretch is covered by riding it once.
 - They update when a route is imported and when a sync brings new rides; `rebuild-derived` recomputes everything (about 20 s for 88 routes × 341 rides on the Mac).
 
-**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue and lists the rides on it, with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides.
+**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Tick routes in the list to set their source or add/remove tags in one go. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue and lists the rides on it, with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides (collapsed under "On routes").
 
 ## Search and filters
 

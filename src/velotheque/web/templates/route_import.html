@@ -20,10 +20,9 @@
     <label class="check"><input type="checkbox" name="merge" value="true"> Merge the files into one route (stages of a race)</label>
     <label>Name <span class="muted small">(needed when merging; otherwise taken from each file)</span>
       <input type="text" name="name" maxlength="200"></label>
-    <label>Source
-      <select name="source">
-        {% for value, label in sources.items() %}<option value="{{ value }}"{% if value == "file" %} selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select></label>
+    <label>Source <span class="muted small">(free text: where the route comes from)</span>
+      <input type="text" name="source" value="file" list="sources" maxlength="40" autocomplete="off"></label>
+    <datalist id="sources">{% for s in sources %}<option value="{{ s }}">{% endfor %}</datalist>
     <label>Tags <span class="muted small">(comma-separated, applied to every imported route)</span>
       <input type="text" name="tags" id="route-tags" autocomplete="off"></label>
     {% if tags %}

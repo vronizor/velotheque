@@ -8,7 +8,7 @@
       <p class="muted"><a href="/?entity=routes">← Routes</a></p>
       <h1>{{ route.name }}</h1>
       <p class="muted">
-        <span class="tag">{{ sources[route.source] }}</span>
+        <a class="tag tag-source" href="/?entity=routes&amp;source={{ route.source | urlencode }}">{{ route.source }}</a>
         {% for t in route.tags %}<a class="tag" href="/?entity=routes&amp;tag={{ t | urlencode }}">{{ t }}</a> {% endfor %}
         · added {{ route.created_at | when("%Y-%m-%d") }}
       </p>
@@ -63,6 +63,8 @@
       <h2>Details</h2>
       <form class="route-form" method="post" action="/routes/{{ route.id }}">
         <label>Name <input type="text" name="name" value="{{ route.name }}" maxlength="200" required></label>
+        <label>Source <input type="text" name="source" value="{{ route.source }}" list="sources" maxlength="40" autocomplete="off"></label>
+        <datalist id="sources">{% for s in sources %}<option value="{{ s }}">{% endfor %}</datalist>
         <label>Tags <span class="muted small">(comma-separated)</span>
           <input type="text" name="tags" id="route-tags" value="{{ route.tags | join(', ') }}" autocomplete="off"></label>
         {% if tags %}

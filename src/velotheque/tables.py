@@ -46,7 +46,9 @@ ROUTE_SEARCH_TSV = (
     "to_tsvector('simple'::regconfig, "
     "vt_unaccent(coalesce(name, '') || ' ' || coalesce(notes, '')))"
 )
-ROUTE_SOURCES = ("strava", "gpx_studio", "file")
+# Sources are free text; these are offered as suggestions.
+ROUTE_SOURCES = ("Strava", "gpx.studio", "file")
+ROUTE_SOURCE_MAX = 40
 
 
 def _now():
@@ -264,7 +266,6 @@ route = Table(
     Column("distance_m", Double, nullable=False, server_default=text("0")),
     Column("elevation_gain_m", Double),
     Column("search_tsv", TSVECTOR, Computed(ROUTE_SEARCH_TSV, persisted=True)),
-    CheckConstraint(f"source IN {ROUTE_SOURCES}", name="source"),
     Index("ix_route_geometry", "geometry", postgresql_using="gist"),
     Index("ix_route_search_tsv", "search_tsv", postgresql_using="gin"),
     Index("ix_route_tags", "tags", postgresql_using="gin"),
