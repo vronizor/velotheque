@@ -206,22 +206,26 @@ def import_files(
 
 
 def import_library(
-    conn: Connection, folder: Path, *, source: str = "file", tags=()
+    conn: Connection, folder: Path, *, separate=(), source: str = "file", tags=()
 ) -> ImportReport:
     """A folder as kept on disk: each route file at its top becomes a route, each subfolder
-    (a race's stage files) one merged route named after the folder. Other files, such as
-    GeoJSON copies, are ignored."""
+    (a race's stage files) one merged route named after the folder, except the subfolders
+    named in `separate`, whose files are routes of their own. Other files, such as GeoJSON
+    copies, are ignored."""
     report = ImportReport()
+    groups: list[tuple[list[Path], str | None]] = []
     for path in sorted(folder.iterdir(), key=lambda p: natural_key(p.name)):
         if path.is_dir():
             files = [p for p in path.rglob("*") if p.is_file() and is_route_file(p.name)]
-            group, name = [(p.name, p.read_bytes()) for p in files], path.name
+            if path.name in separate:
+                groups += [([p], None) for p in sorted(files, key=lambda p: natural_key(p.name))]
+            elif files:
+                groups.append((files, path.name))
         elif is_route_file(path.name):
-            group, name = [(path.name, path.read_bytes())], None
-        else:
-            continue
-        if group:
-            create_route(conn, group, name=name, source=source, tags=tags, report=report)
+            groups.append(([path], None))
+    for files, name in groups:
+        group = [(p.name, p.read_bytes()) for p in files]
+        create_route(conn, group, name=name, source=source, tags=tags, report=report)
     return report
 
 

@@ -123,7 +123,9 @@ def cmd_routes_import_library(args) -> None:
     from velotheque.routes import import_library
 
     with get_engine().begin() as conn:
-        report = import_library(conn, Path(args.folder), source=args.source, tags=args.tag)
+        report = import_library(
+            conn, Path(args.folder), separate=args.separate, source=args.source, tags=args.tag
+        )
     _print_report(report)
 
 
@@ -186,6 +188,13 @@ def main(argv: list[str] | None = None) -> None:
         help="import a folder: one route per file, one merged route per subfolder",
     )
     library.add_argument("folder", help="folder of route files and race subfolders")
+    library.add_argument(
+        "--separate",
+        action="append",
+        default=[],
+        metavar="SUBFOLDER",
+        help="a subfolder whose files are separate routes, not stages (repeatable)",
+    )
     library.add_argument("--source", default="file", help="where the routes come from")
     library.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
     library.set_defaults(func=cmd_routes_import_library)

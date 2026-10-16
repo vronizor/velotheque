@@ -273,8 +273,12 @@ def test_library_folder_merges_subfolders(conn, tmp_path):
     race.mkdir()
     for i in (2, 1):
         (race / f"stage{i}.gpx").write_bytes(gpx(east(i + 1, start_km=i), name=f"S{i}"))
-    report = import_library(conn, tmp_path, tags=["x"])
-    assert sorted(name for _, name in report.created) == ["2023_some-race", "Loop"]
+    misc = tmp_path / "misc"
+    misc.mkdir()
+    (misc / "a.gpx").write_bytes(gpx(east(2, north_m=900), name="A"))
+    (misc / "b.gpx").write_bytes(gpx(east(2, north_m=1800), name="B"))
+    report = import_library(conn, tmp_path, separate=["misc"], tags=["x"])
+    assert sorted(name for _, name in report.created) == ["2023_some-race", "A", "B", "Loop"]
     assert report.skipped == []
     assert import_library(conn, tmp_path).created == []
 
