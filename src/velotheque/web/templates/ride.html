@@ -47,6 +47,15 @@
 
   {% include "_companions.html" %}
 
+  {% if ride_components %}
+    <section class="ride-components">
+      <h2>On the bike <span class="muted small">components mounted on {{ ride.bike_name }} that day</span></h2>
+      <ul class="chips">
+        {% for c in ride_components %}<li class="chip chip-plain"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="muted small">{{ c.kind }}</span>{% endif %}</li>{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
   {% with explore = "/?" %}{% include "_regions_crossed.html" %}{% endwith %}
 
   {% if routes %}

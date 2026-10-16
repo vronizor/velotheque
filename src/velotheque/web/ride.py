@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy import Connection
 
-from velotheque import companions, queries
+from velotheque import companions, components, queries
 from velotheque.config import get_settings
 from velotheque.web.deps import get_conn, templates
 from velotheque.web.jobs import render_widget, submit
@@ -32,6 +32,7 @@ def ride_page(activity_id: int, request: Request, conn: Connection = Depends(get
             "regions": queries.ride_regions(conn, activity_id),
             "ride_companions": queries.ride_companions(conn, activity_id),
             "companions": queries.companions(conn),
+            "ride_components": components.mounted_on_ride(conn, activity_id),
             "map_style_url": get_settings().map_style_url,
         },
     )

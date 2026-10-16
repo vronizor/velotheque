@@ -18,6 +18,7 @@ from velotheque.tables import (
     activity_track_simplified,
     bike,
     companion,
+    component,
     raw_gpx_file,
     region,
     region_country,
@@ -535,6 +536,10 @@ def ride_routes_geojson(conn: Connection, activity_id: int) -> str:
 
 def route_name(conn: Connection, route_id: int) -> str | None:
     return conn.execute(select(route.c.name).where(route.c.id == route_id)).scalar()
+
+
+def component_name(conn: Connection, component_id: int) -> str | None:
+    return conn.execute(select(component.c.name).where(component.c.id == component_id)).scalar()
 
 
 def region_status(conn: Connection) -> dict:

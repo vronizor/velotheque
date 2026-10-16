@@ -1,0 +1,30 @@
+{% macro amount(value, unit) -%}
+  {%- if value is none -%}–
+  {%- elif unit == "km" -%}{{ value | whole }} km
+  {%- elif unit == "hours" -%}{{ "%.1f" | format(value) if value < 10 else value | whole }} h
+  {%- else -%}{{ value | round(0, "floor") | int }} d{%- endif -%}
+{%- endmacro %}
+
+{% macro scope(rides) -%}
+  {{ {"all": "all rides", "outdoor": "outdoor rides only", "indoor": "indoor rides only"}[rides] if rides in ("all", "outdoor", "indoor") else rides }}
+{%- endmacro %}
+
+{% macro bar(u, label=true) %}
+<span class="service status-{{ u.status }}" title="{{ u.name }} (level {{ u.level }}, {{ scope(u.rides) if u.interval_unit != 'days' else 'calendar time' }}){% if u.reset_at %}: last done {{ u.reset_at | local(zone, '%Y-%m-%d') }}{% endif %}">
+  {% if label %}<span class="service-name">{{ u.name }}</span>{% endif %}
+  <span class="meter" aria-hidden="true"><span style="width: {{ [((u.fraction or 0) * 100) | round(1), 100] | min }}%"></span></span>
+  <span class="service-amount">{{ amount(u.used, u.interval_unit) }} / {{ amount(u.interval_value, u.interval_unit) }}{% if u.used is none %} <span class="muted">not mounted yet</span>{% endif %}</span>
+</span>
+{% endmacro %}
+
+{% macro log_button(component_id, u, next) %}
+<form method="post" action="/components/{{ component_id }}/events" class="inline">
+  <input type="hidden" name="service_type_id" value="{{ u.id }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <button type="submit" class="small-button" title="Log “{{ u.name }}” as done now">Log</button>
+</form>
+{% endmacro %}
+
+{% macro bike_options(bikes, selected=none, skip=none) %}
+  {% for b in bikes if b.id != skip %}<option value="{{ b.id }}"{% if b.id == selected %} selected{% endif %}>{{ b.name }}{% if b.retired %} (retired){% endif %}</option>{% endfor %}
+{% endmacro %}

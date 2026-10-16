@@ -8,7 +8,7 @@ from velotheque.config import get_settings
 from velotheque.db import get_engine
 from velotheque.photos import PHOTO_DIR
 from velotheque.strava.sync import mark_interrupted
-from velotheque.web import explore, jobs, regions, ride, route, settings, views
+from velotheque.web import components, explore, jobs, regions, ride, route, settings, views
 from velotheque.web.deps import STATIC_DIR
 
 
@@ -28,5 +28,5 @@ app.mount(
     StaticFiles(directory=get_settings().data_dir / PHOTO_DIR, check_dir=False),
     name="photos",
 )
-for module in (explore, ride, route, regions, settings, jobs, views):
+for module in (explore, ride, route, components, regions, settings, jobs, views):
     app.include_router(module.router)

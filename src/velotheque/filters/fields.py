@@ -10,6 +10,7 @@ from velotheque.tables import (
     activity_companion,
     activity_region,
     activity_track,
+    component_assignment,
     route_coverage,
     route_region,
     route_ride_overlap,
@@ -359,3 +360,16 @@ def _with_facet(t):
 
 
 register(Field("with", "Rode with", RIDES, int, _with_where, multi=True, facet=_with_facet))
+
+
+def _component_where(t, values):
+    a = component_assignment
+    return exists().where(
+        a.c.component_id.in_(values),
+        a.c.bike_id == t.c.bike_id,
+        t.c.start_at >= a.c.mounted_at,
+        a.c.removed_at.is_(None) | (t.c.start_at < a.c.removed_at),
+    )
+
+
+register(Field("component", "Component", RIDES, int, _component_where, multi=True))

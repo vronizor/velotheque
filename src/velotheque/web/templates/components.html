@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% from "_service.html" import bar, amount, log_button, bike_options with context %}
+{% block title %}Components · Vélothèque{% endblock %}
+{% block content %}
+<main class="ride components-page">
+  <h1>Components</h1>
+  {% if message %}<p class="notice">{{ message }}</p>{% endif %}
+  {% if error %}<p class="notice error">{{ error }}</p>{% endif %}
+
+  {% if due %}
+  <section class="due">
+    <h2>Due soon <span class="muted small">services past half their interval, most worn first</span></h2>
+    <table class="components">
+      <thead><tr><th>Component</th><th>Bike</th><th>Service</th><th></th></tr></thead>
+      <tbody>
+        {% for u, c in due %}
+          <tr>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
+            <td>{{ c.bike_name }}</td>
+            <td class="col-service">{{ bar(u) }}</td>
+            <td>{{ log_button(c.id, u, "/components") }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% for b in bikes if mounted[b.id] %}
+  <section class="bike-block" id="bike-{{ b.id }}">
+    <h2>{{ b.name }}{% if b.retired %} <span class="tag">retired</span>{% endif %} <a class="muted small" href="/?bike={{ b.id }}">rides</a></h2>
+    {% if mounted[b.id] %}
+    <table class="components">
+      <thead><tr><th>Component</th><th class="col-since">Since</th><th class="col-distance">Done</th><th>Service</th></tr></thead>
+      <tbody>
+        {% for c in mounted[b.id] %}
+          {% set life = lifetime.get(c.id) %}
+          <tr>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}{% if c.brand or c.model %}<br><span class="muted small">{{ [c.brand, c.model] | select | join(" ") }}</span>{% endif %}</td>
+            <td class="col-since">{{ c.mounted_at | local(zone, "%Y-%m-%d") }}</td>
+            <td class="num">{{ ((life.distance_m if life else 0) / 1000) | whole }} km<br><span class="muted small">{{ (life.moving_time_s if life else 0) | hours }} h</span></td>
+            <td class="col-service">
+              {% for u in usage.get(c.id, []) %}
+                <div class="service-row">{{ bar(u) }} {{ log_button(c.id, u, "/components#bike-" ~ b.id) }}</div>
+              {% else %}
+                <a class="muted small" href="/components/{{ c.id }}#service">add a service interval</a>
+              {% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+  {% endfor %}
+  {% set empty = bikes | rejectattr("retired") | selectattr("id", "in", empty_bikes) | list %}
+  {% if empty %}
+    <p class="muted small">Nothing mounted on {% for b in empty %}<a href="/?bike={{ b.id }}">{{ b.name }}</a>{{ ", " if not loop.last }}{% endfor %}. Add a component below.</p>
+  {% endif %}
+
+  {% if spares %}
+  <section id="spares">
+    <h2>Not mounted <span class="muted">{{ spares | length }}</span></h2>
+    <table class="components">
+      <thead><tr><th>Component</th><th class="col-distance">Done</th><th>Service</th></tr></thead>
+      <tbody>
+        {% for c in spares %}
+          {% set life = lifetime.get(c.id) %}
+          <tr>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
+            <td class="num">{{ ((life.distance_m if life else 0) / 1000) | whole }} km</td>
+            <td class="col-service">{% for u in usage.get(c.id, []) %}<div class="service-row">{{ bar(u) }}</div>{% endfor %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if retired %}
+  <details class="collapsible" data-remember="retired-components">
+    <summary><h2>Retired <span class="muted">{{ retired | length }}</span></h2></summary>
+    <table class="components">
+      <thead><tr><th>Component</th><th>Retired</th><th class="col-distance">Done</th></tr></thead>
+      <tbody>
+        {% for c in retired %}
+          {% set life = lifetime.get(c.id) %}
+          <tr>
+            <td class="col-name"><a href="/components/{{ c.id }}">{{ c.name }}</a>{% if c.kind %} <span class="tag">{{ c.kind }}</span>{% endif %}</td>
+            <td>{{ c.retired_at | local(zone, "%Y-%m-%d") }}</td>
+            <td class="num">{{ ((life.distance_m if life else 0) / 1000) | whole }} km · {{ (life.moving_time_s if life else 0) | hours }} h</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+
+  <section id="add">
+    <h2>Add a component</h2>
+    <form class="route-form" method="post" action="/components">
+      <label>Name <input type="text" name="name" maxlength="120" required placeholder="e.g. KMC X11 chain"></label>
+      <div class="form-row">
+        <label>Kind <input type="text" name="kind" list="kinds" maxlength="40" autocomplete="off"></label>
+        <label>Brand <input type="text" name="brand" maxlength="120"></label>
+        <label>Model <input type="text" name="model" maxlength="120"></label>
+      </div>
+      <datalist id="kinds">{% for k in kinds %}<option value="{{ k }}">{% endfor %}</datalist>
+      <div class="form-row">
+        <label>Mounted on
+          <select name="bike_id"><option value="">— not mounted —</option>{{ bike_options(bikes) }}</select></label>
+        <label>Since <input type="datetime-local" name="mounted_at" value="{{ now_input }}"></label>
+      </div>
+      {% if schedules %}
+      <label>Service intervals
+        <select name="copy_from"><option value="">— none, I'll add them —</option>{% for s in schedules %}<option value="{{ s.id }}">same as {{ s.name }}{% if s.kind %} ({{ s.kind }}){% endif %}</option>{% endfor %}</select></label>
+      {% endif %}
+      <label>Notes <textarea name="notes" rows="2"></textarea></label>
+      <button type="submit">Add</button>
+    </form>
+    <p class="muted small">Times are in {{ zone.key }}. A ride counts toward a component if it starts while the component is on that ride's bike.</p>
+  </section>
+
+  <section id="no-bike">
+    <h2>Rides with no bike <span class="muted">{{ no_bike.count }}</span></h2>
+    {% if no_bike.count %}
+      <p class="small">They count toward no component. Set the bike on Strava, then use “Refresh from Strava” on the ride (sync re-reads the last 14 days by itself).
+        <a href="/?bike=none">See them in Explore</a>{% if no_bike.indoor %}, including {{ no_bike.indoor }} indoor ones (not listed here){% endif %}.</p>
+      <ul class="plain-list small">
+        {% for r in no_bike.latest %}
+          <li><a href="/rides/{{ r.id }}">{{ r.name or "Untitled" }}</a> <span class="muted">· {{ r.start_at_local | when("%Y-%m-%d") }} · {{ r.type }} · {{ r.distance_m | km }} km</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Every ride has a bike.</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

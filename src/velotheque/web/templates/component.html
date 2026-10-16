@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% from "_service.html" import bar, amount, scope, log_button, bike_options with context %}
+{% block title %}{{ component.name }} · Vélothèque{% endblock %}
+{% block content %}
+{% set c = component %}
+{% set used_types = events | map(attribute="service_type_id") | select | list %}
+{% set input_fmt = "%Y-%m-%dT%H:%M" %}
+<main class="ride component-page">
+  <div class="ride-head">
+    <div>
+      <p class="muted"><a href="/components">← Components</a></p>
+      <h1>{{ c.name }}</h1>
+      <p class="muted">
+        {% if c.kind %}<span class="tag">{{ c.kind }}</span>{% endif %}
+        {{ [c.brand, c.model] | select | join(" ") }}
+        {% if c.retired_at %}· retired {{ c.retired_at | local(zone, "%Y-%m-%d") }}
+        {% elif c.bike_id %}· on <a href="/components#bike-{{ c.bike_id }}">{{ c.bike_name }}</a> since {{ c.mounted_at | local(zone, "%Y-%m-%d") }}
+        {% else %}· not mounted{% endif %}
+      </p>
+    </div>
+    {% if lifetime and lifetime.rides %}
+    <div class="ride-actions">
+      <a class="button" href="/?component={{ c.id }}">Show its {{ lifetime.rides }} rides in Explore</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if message %}<p class="notice">{{ message }}</p>{% endif %}
+  {% if error %}<p class="notice error">{{ error }}</p>{% endif %}
+
+  <dl class="stats">
+    <div><dt>Distance</dt><dd>{{ ((lifetime.distance_m if lifetime else 0) / 1000) | whole }} km</dd></div>
+    <div><dt>Moving time</dt><dd>{{ (lifetime.moving_time_s if lifetime else 0) | hours }} h</dd></div>
+    <div><dt>Rides</dt><dd>{{ lifetime.rides if lifetime else 0 }}</dd></div>
+    <div><dt>Bike</dt><dd>{{ c.bike_name or "—" }}</dd></div>
+  </dl>
+
+  <div class="route-columns">
+    <div>
+      <section id="service">
+        <h2>Service</h2>
+        {% for u in usage %}
+          <div class="service-type">
+            <div class="service-row">{{ bar(u) }} {{ log_button(c.id, u, "/components/" ~ c.id ~ "#service") }}</div>
+            <p class="muted small">
+              Level {{ u.level }} · every {{ amount(u.interval_value, u.interval_unit) }}
+              · {{ scope(u.rides) if u.interval_unit != "days" else "calendar time" }}
+              · {% if u.reset_at %}last done {{ u.reset_at | local(zone, "%Y-%m-%d") }}{% else %}never done, counted from mounting{% endif %}
+              {% if u.interval_unit != "days" %}· {{ u.ride_count }} ride{{ "" if u.ride_count == 1 else "s" }} since{% endif %}
+            </p>
+            <details class="edit">
+              <summary class="small">Edit</summary>
+              <form class="service-form" method="post" action="/components/{{ c.id }}/service-types/{{ u.id }}">
+                {% with s = u %}{% include "_service_fields.html" %}{% endwith %}
+                <button type="submit">Save</button>
+              </form>
+              {% if u.id not in used_types %}
+                <form method="post" action="/components/{{ c.id }}/service-types/{{ u.id }}/delete" class="inline">
+                  <button type="submit" class="button secondary small-button">Delete</button>
+                </form>
+              {% else %}
+                <p class="muted small">It has entries in the log, so it can't be deleted.</p>
+              {% endif %}
+            </details>
+          </div>
+        {% else %}
+          <p class="muted">No service interval yet.</p>
+        {% endfor %}
+
+        <details class="edit"{% if not usage %} open{% endif %}>
+          <summary>Add a service interval</summary>
+          <form class="service-form" method="post" action="/components/{{ c.id }}/service-types">
+            {% with s = none %}{% include "_service_fields.html" %}{% endwith %}
+            <button type="submit">Add</button>
+          </form>
+          {% if schedules %}
+          <form class="service-form" method="post" action="/components/{{ c.id }}/schedule">
+            <label>or copy the intervals of
+              <select name="copy_from">{% for s in schedules %}<option value="{{ s.id }}">{{ s.name }}{% if s.kind %} ({{ s.kind }}){% endif %}</option>{% endfor %}</select></label>
+            <button type="submit" class="button secondary">Copy</button>
+          </form>
+          {% endif %}
+          <p class="muted small">Logging a service of level L also resets this component's services of lower levels: with “Lowers” at level 1 and “Full service” at level 2, a full service resets both. Indoor rides are trainer rides and virtual rides.</p>
+        </details>
+      </section>
+
+      <section id="log">
+        <h2>Log</h2>
+        <form class="service-form" method="post" action="/components/{{ c.id }}/events">
+          <label>What
+            <select name="service_type_id">
+              {% for u in usage %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+              <option value="">Note only (resets nothing)</option>
+            </select></label>
+          <label>When <input type="datetime-local" name="at" value="{{ now_input }}" required></label>
+          <label class="wide">Notes <input type="text" name="notes" maxlength="500"></label>
+          <button type="submit">Log</button>
+        </form>
+        {% if events %}
+        <table class="components">
+          <thead><tr><th>When</th><th>What</th><th>Notes</th><th></th></tr></thead>
+          <tbody>
+            {% for e in events %}
+              <tr>
+                <td>{{ e.performed_at | local(zone) }}</td>
+                <td>{% if e.service_name %}{{ e.service_name }} <span class="muted small">L{{ e.level }}</span>{% else %}<span class="muted">note</span>{% endif %}</td>
+                <td class="col-name">{{ e.notes or "" }}</td>
+                <td>
+                  <form method="post" action="/components/{{ c.id }}/events/{{ e.id }}/delete" class="inline">
+                    <button type="submit" class="chip-remove" aria-label="Delete this entry" title="Delete this entry">×</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </section>
+    </div>
+
+    <div>
+      <section id="bike">
+        <h2>Bike</h2>
+        {% if c.retired_at %}
+          <p>Retired on {{ c.retired_at | local(zone) }}.</p>
+          <form method="post" action="/components/{{ c.id }}/unretire"><button type="submit" class="button secondary">Back in use</button></form>
+        {% else %}
+          {% if c.bike_id %}
+            <p>On <strong>{{ c.bike_name }}</strong> since {{ c.mounted_at | local(zone) }}.</p>
+            <form class="service-form" method="post" action="/components/{{ c.id }}/mount">
+              <label>Move to <select name="bike_id">{{ bike_options(bikes, skip=c.bike_id) }}</select></label>
+              <label>on <input type="datetime-local" name="at" value="{{ now_input }}" required></label>
+              <button type="submit">Move</button>
+            </form>
+            <form class="service-form" method="post" action="/components/{{ c.id }}/unmount">
+              <label>Take off on <input type="datetime-local" name="at" value="{{ now_input }}" required></label>
+              <button type="submit" class="button secondary">Unmount</button>
+            </form>
+          {% else %}
+            <form class="service-form" method="post" action="/components/{{ c.id }}/mount">
+              <label>Mount on <select name="bike_id">{{ bike_options(bikes) }}</select></label>
+              <label>on <input type="datetime-local" name="at" value="{{ now_input }}" required></label>
+              <button type="submit">Mount</button>
+            </form>
+          {% endif %}
+          <form class="service-form" method="post" action="/components/{{ c.id }}/retire">
+            <label>Retire on <input type="datetime-local" name="at" value="{{ now_input }}" required></label>
+            <button type="submit" class="button secondary">Retire</button>
+          </form>
+          <p class="muted small">Retiring (worn out, sold) takes it off its bike and keeps its history. Times are in {{ zone.key }}.</p>
+        {% endif %}
+      </section>
+
+      <section id="details">
+        <h2>Details</h2>
+        <form class="route-form" method="post" action="/components/{{ c.id }}">
+          <label>Name <input type="text" name="name" value="{{ c.name }}" maxlength="120" required></label>
+          <label>Kind <input type="text" name="kind" value="{{ c.kind }}" list="kinds" maxlength="40" autocomplete="off"></label>
+          <datalist id="kinds">{% for k in kinds %}<option value="{{ k }}">{% endfor %}</datalist>
+          <label>Brand <input type="text" name="brand" value="{{ c.brand or '' }}" maxlength="120"></label>
+          <label>Model <input type="text" name="model" value="{{ c.model or '' }}" maxlength="120"></label>
+          <label>Notes <textarea name="notes" rows="4">{{ c.notes or "" }}</textarea></label>
+          <button type="submit">Save</button>
+        </form>
+        <form method="post" action="/components/{{ c.id }}/delete" class="danger-zone"
+              onsubmit="return confirm('Delete “{{ c.name | e }}” with its history and service log? To keep them, retire it instead.')">
+          <button type="submit" class="button secondary">Delete component</button>
+        </form>
+      </section>
+    </div>
+  </div>
+
+    <section id="history">
+      <h2>History</h2>
+      <table class="components history">
+        <thead><tr><th>Bike</th><th>Mounted</th><th>Removed</th><th></th></tr></thead>
+        <tbody>
+          {% for h in history %}
+            <tr>
+              <td><select name="bike_id" form="period-{{ h.id }}" aria-label="Bike">{{ bike_options(bikes, selected=h.bike_id) }}</select></td>
+              <td data-label="Mounted"><input type="datetime-local" name="mounted_at" form="period-{{ h.id }}" value="{{ h.mounted_at | local(zone, input_fmt) }}" required aria-label="Mounted"></td>
+              <td data-label="Removed"><input type="datetime-local" name="removed_at" form="period-{{ h.id }}" value="{{ h.removed_at | local(zone, input_fmt) }}" aria-label="Removed (empty: still on)"></td>
+              <td class="actions">
+                <form id="period-{{ h.id }}" method="post" action="/components/{{ c.id }}/assignments/{{ h.id }}" class="inline"><button type="submit" class="small-button">Save</button></form>
+                <form method="post" action="/components/{{ c.id }}/assignments/{{ h.id }}/delete" class="inline"><button type="submit" class="chip-remove" aria-label="Delete this period" title="Delete this period">×</button></form>
+              </td>
+            </tr>
+          {% endfor %}
+          <tr class="add-period">
+            <td><select name="bike_id" form="period-new" aria-label="Bike">{{ bike_options(bikes) }}</select></td>
+            <td data-label="Mounted"><input type="datetime-local" name="mounted_at" form="period-new" required aria-label="Mounted"></td>
+            <td data-label="Removed"><input type="datetime-local" name="removed_at" form="period-new" aria-label="Removed (empty: still on)"></td>
+            <td class="actions"><form id="period-new" method="post" action="/components/{{ c.id }}/assignments" class="inline"><button type="submit" class="small-button">Add</button></form></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted small">Edit the dates to fix the history, or add an earlier period (e.g. a summer on another bike). Leave “Removed” empty while it's still on. It can't be on two bikes at once.</p>
+    </section>
+</main>
+{% endblock %}

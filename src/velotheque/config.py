@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     rate_limit_margin: int = 3
 
     map_style_url: str = "https://tiles.openfreemap.org/styles/liberty"
+    # Zone for dates typed in forms (component mounts, services); default: the latest ride's.
+    timezone: str | None = None
 
     @property
     def redirect_uri(self) -> str:

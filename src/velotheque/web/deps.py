@@ -49,6 +49,10 @@ def when(value: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
     return value.strftime(fmt) if value else ""
 
 
+def local(value: datetime | None, zone, fmt: str = "%Y-%m-%d %H:%M") -> str:
+    return value.astimezone(zone).strftime(fmt) if value else ""
+
+
 def ago(delta) -> str:
     if delta is None:
         return ""
@@ -61,5 +65,12 @@ def ago(delta) -> str:
 
 
 templates.env.filters.update(
-    percent=percent, km=km, whole=whole, duration=duration, hours=hours, when=when, ago=ago
+    percent=percent,
+    km=km,
+    whole=whole,
+    duration=duration,
+    hours=hours,
+    when=when,
+    local=local,
+    ago=ago,
 )

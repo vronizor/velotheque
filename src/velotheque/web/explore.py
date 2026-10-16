@@ -79,6 +79,12 @@ def results_context(
                 strict=True,
             )
         ],
+        "on_component": [
+            (raw, queries.component_name(conn, value))
+            for raw, value in zip(
+                state.raw.get("component", []), state.values.get("component", []), strict=True
+            )
+        ],
         "geojson_url": "",
         "routes_geojson_url": "",
         "regions": queries.region_filter(conn, state),

@@ -4,7 +4,7 @@
 
 A self-hosted explorer for my own Strava cycling history, running on a Raspberry Pi. It's single-user and read-only towards Strava.
 
-Milestones 1–3, 5 and 6 (this version) cover:
+All six milestones (this version) cover:
 - Strava OAuth and a resumable **Sync now** (activities, details, streams)
 - the Strava bulk export import, with photos
 - normalized rides and tracks
@@ -14,8 +14,7 @@ Milestones 1–3, 5 and 6 (this version) cover:
 - a **route library**: GPX import (upload form and CLI, race stages merged into one route), tags, how much of each route you've ridden, and routes on the Explore map
 - **regions**: GADM boundaries per country, every ride and route tagged with the regions it crosses, and a region filter with accent-insensitive place search
 - **who you rode with**: Strava's group size on every ride, and a "Rode with" list per ride, filled from @mentions in descriptions or by hand, with Solo / Group and Rode with filters
-
-Milestone 4 (components and maintenance) comes later.
+- **components and maintenance**: parts per bike with their mounting history, service intervals in km, hours or days (all, outdoor-only or indoor-only rides), progress bars that turn amber then red, a "Due soon" list, and a service log
 
 The full design is in [`velotheque-spec.md`](velotheque-spec.md), and progress is tracked in [`TODO.md`](TODO.md).
 
@@ -82,6 +81,7 @@ mypi.my-tailnet.ts.net {
 | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | From <https://www.strava.com/settings/api> |
 | `STRAVA_API_BASE` | Defaults to `https://www.strava.com/api/v3`. Strava announced a move to `api-v3.strava.com` in 2027. |
 | `MAP_STYLE_URL` | Defaults to OpenFreeMap Liberty |
+| `TIMEZONE` | Zone for dates typed in the Components forms, e.g. `Europe/Zurich`. Defaults to the latest ride's timezone |
 
 ## Connecting Strava
 
@@ -184,6 +184,19 @@ Strava's API and bulk export never say who was on a group ride. The API only giv
 - **Rode with** on the ride page lists people. Each sync adds anyone @mentioned in the description (the mention carries their Strava athlete id, so the same person is recognised later even if their display name changes). Add others by hand with **Add someone** (it suggests names already used); × removes someone. A removed mention stays removed after the next sync.
 - Explore's **Rode with** box filters by person, with counts. **Settings → People** lists everyone with their ride count; renaming someone to a name already listed merges the two (rides and Strava ids).
 - Mentions already in your descriptions were picked up when migration 0009 ran.
+
+## Components and maintenance
+
+**Components** (top menu) tracks parts per bike: chains, cassettes, tyres, forks… Strava's API has no components, so this is all entered by hand, and it is the data the nightly backup exists for.
+
+- **Mounting**: a component is on at most one bike at a time. Mount it, move it to another bike (the old period ends when the new one starts), unmount it, or retire it (worn out, sold). The History table on its page fixes dates or adds past periods.
+- **Service intervals**: each one is in km, hours or days, and counts all rides, outdoor rides only, or indoor rides only (trainer and virtual rides). A chain counts everything; a direct-drive trainer's cassette counts indoor rides only; the bike's own cassette counts outdoor rides only.
+- **Usage**: the rides on the bike the component was on, from mounting (a ride starting exactly then counts) until removal, started after the last reset. Days are calendar time since the last reset (or since first mounted), ridden or not. Nothing is stored: it is computed when a page loads.
+- **Levels**: logging a service of level L resets the component's services of level ≤ L (a full service at level 2 also resets the level-1 lowers service). An entry without a service is a note and resets nothing.
+- Bars turn amber at 90% and red past 100%. **Due soon** at the top lists every service past half its interval, most worn first. Each bar has a quick **Log** button (done now); log on the component page to give a date and notes.
+- A new component can copy the service intervals of an older one (a new chain like the last one).
+- A ride's page lists the components on its bike that day. `/?component=<id>` in Explore lists the rides done with a component.
+- Rides count only if Strava has a bike on them. The Components page lists rides without one; fix the bike on Strava and use “Refresh from Strava”.
 
 ## Regions
 

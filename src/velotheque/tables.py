@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Double,
     ForeignKey,
+    ForeignKeyConstraint,
     Identity,
     Index,
     Integer,
@@ -22,7 +23,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR, ExcludeConstraint
 
 metadata = MetaData(
     naming_convention={
@@ -449,6 +450,77 @@ activity_companion = Table(
     PrimaryKeyConstraint("activity_id", "companion_id"),
     CheckConstraint("source IN ('mention', 'manual')", name="source"),
     Index(None, "companion_id"),
+)
+
+# Components and maintenance. A component is on at most one bike at a time; usage is computed
+# from the rides on that bike while it was mounted (components.py), never stored.
+INTERVAL_UNITS = ("km", "hours", "days")
+# Which rides wear a component: indoor = trainer flag or VirtualRide.
+RIDE_SCOPES = ("all", "outdoor", "indoor")
+
+component = Table(
+    "component",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("kind", Text, nullable=False, server_default=""),
+    Column("brand", Text),
+    Column("model", Text),
+    Column("notes", Text),
+    Column("retired_at", TZ),
+    Column("created_at", TZ, nullable=False, server_default=func.now()),
+)
+
+component_assignment = Table(
+    "component_assignment",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("component_id", Integer, ForeignKey("component.id", ondelete="CASCADE"), nullable=False),
+    Column("bike_id", Integer, ForeignKey("bike.id"), nullable=False),
+    Column("mounted_at", TZ, nullable=False),
+    Column("removed_at", TZ),
+    CheckConstraint("removed_at IS NULL OR removed_at > mounted_at", name="dates"),
+    ExcludeConstraint(
+        ("component_id", "="),
+        (func.tstzrange(text("mounted_at"), text("removed_at"), "[)"), "&&"),
+        name="ex_component_assignment_one_bike",
+        using="gist",
+    ),
+    Index(None, "bike_id"),
+)
+
+service_type = Table(
+    "service_type",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("component_id", Integer, ForeignKey("component.id", ondelete="CASCADE"), nullable=False),
+    Column("name", Text, nullable=False),
+    Column("level", SmallInteger, nullable=False, server_default=text("1")),
+    Column("interval_value", Double, nullable=False),
+    Column("interval_unit", Text, nullable=False),
+    Column("rides", Text, nullable=False, server_default="all"),
+    CheckConstraint("level >= 1", name="level"),
+    CheckConstraint("interval_value > 0", name="interval_value"),
+    CheckConstraint("interval_unit IN ('km', 'hours', 'days')", name="interval_unit"),
+    CheckConstraint("rides IN ('all', 'outdoor', 'indoor')", name="rides"),
+    UniqueConstraint("id", "component_id"),
+)
+
+# An event without a service type is a note: it resets nothing.
+service_event = Table(
+    "service_event",
+    metadata,
+    Column("id", Integer, Identity(), primary_key=True),
+    Column("component_id", Integer, ForeignKey("component.id", ondelete="CASCADE"), nullable=False),
+    Column("service_type_id", Integer),
+    Column("performed_at", TZ, nullable=False),
+    Column("notes", Text),
+    ForeignKeyConstraint(
+        ["service_type_id", "component_id"],
+        ["service_type.id", "service_type.component_id"],
+        name="fk_service_event_service_type",
+    ),
+    Index(None, "component_id", "performed_at"),
 )
 
 DERIVED_TABLES = (

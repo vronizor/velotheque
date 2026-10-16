@@ -1,6 +1,6 @@
 # Vélothèque — TODO
 
-Plan: Milestone 6 (Regions); M4 deferred until the SSD move. Spec: `velotheque-spec.md`.
+Plan: Milestone 4 (Components); started before the SSD move (owner, 2026-10-16). Spec: `velotheque-spec.md`.
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ## Blockers / waiting on the owner
@@ -32,6 +32,21 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Perf on the Pi under 1 s
 - [x] Backup: first run (531 photos), restore test from Drive OK, nightly timer, reboot test OK
 - [ ] Move data to the SSD before Milestone 4 (see Pi deployment notes)
+
+## M4 — Components and maintenance (2026-10-16, before the SSD move)
+Decisions (owner, 2026-10-16): intervals in km, hours **or days** (calendar time since the last reset, ridden or not: sealant, brake fluid, yearly fork service); each service type counts **all / outdoor only / indoor only** rides (owner's case: an old road bike as the home-trainer bike → chain all, bike cassette and rear tyre outdoor, trainer cassette indoor); bars amber at 90%, red past 100%, plus a "Due soon" list (≥ 50%, most worn first) to know what to order. Old gym virtual rides stay without a bike (owner doesn't care); nothing backfills bikes: Strava's default gear applies to new uploads, and sync only re-reads 14 days. SSD not there yet: curated data starts on the SD card, covered by the nightly Proton backup.
+Rules: usage = rides on the assignment's bike with `mounted_at <= start_at < removed_at`, after the latest reset (`start_at > performed_at`); an event of level L resets the component's service types of level ≤ L; an event without a service type is a note and resets nothing; indoor = trainer flag or VirtualRide. Computed on demand in one query (`components.USAGE`), never stored. Times typed in forms are read in `TIMEZONE` (env), else the latest ride's timezone.
+- [x] Migration 0010 (curated): `component` (name, kind, brand, model, notes, retired_at), `component_assignment` (bike, mounted_at, removed_at; btree_gist exclusion `[mounted_at, removed_at)`: one bike at a time, back-to-back periods allowed), `service_type` (name, level, interval value + unit km|hours|days, rides all|outdoor|indoor), `service_event` (component, optional service type with a composite FK so it belongs to the same component, performed_at, notes)
+- [x] `components.py`: add/edit, mount/move/unmount/retire, past periods (add/edit/delete), service types (copy a schedule from another component; delete only while unused), events; usage + lifetime queries
+- [x] Filter `component` (rides done while it was mounted), shown in Explore when active
+- [x] Components page: Due soon; per bike, mounted components with lifetime km/h and service bars + quick "Log"; bikes with nothing mounted on one line; spares; retired (collapsed); add form (mount + copy intervals); rides with no bike (outdoor ones listed, indoor counted)
+- [x] Component page: stats, service intervals (edit inline), log (date + notes, delete), bike (mount/move/unmount/retire/back in use), history (edit dates, add a past period), details, delete; link to its rides in Explore
+- [x] Ride page: "On the bike" (components on its bike that day). No mirror on the route page (routes have no bike)
+- [x] Tests: usage (ride at mounted_at counts, removal exclusive, swap across bikes, reset levels, ride at reset time, km/hours/days, indoor scopes, lifetime), exclusion + date checks, copy schedule, delete guard, cross-component event refused, filter, ride page list, timezone parsing, web flow (133 total)
+- [x] Local stack with real data: migration ran at startup; 7 scenario components (chain with wax + outdoor wear check, fork with level 1/2 services, tyre with 90-day sealant, trainer-bike chain + indoor-only trainer cassette, wheelset moved between two bikes, spare chain with copied intervals); /components in ~40 ms; headless check of overview, component pages, ride page, Explore filter (17 rides across both bikes), phone (no horizontal scroll), history save/add with overlap error, quick Log, inline service edit. Scenario components deleted afterwards
+- [x] README, .env.example (`TIMEZONE`)
+- [ ] Deploy to the Pi (owner): `git pull`, rebuild (migration 0010 runs at startup), then enter the real components
+- [ ] Move data to the SSD when it arrives (curated data now exists)
 
 ## Who you rode with (2026-10-16, owner request after M6)
 VERIFY (2026-10-16): the API gives no list of group members. Activities carry `athlete_count` only (local data: 572 rides at 1, 91 above, max 156); the old "related activities" endpoint isn't in the current API reference; the bulk export's activities.csv has no group column. Mentions `[strava://athletes/<id>/<len>]Name` carry the athlete id; `<len>` is the name's length in characters (checked on real mentions with accented names). They're only in the detail payload and the export description (not the summary).

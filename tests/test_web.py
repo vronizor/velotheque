@@ -268,3 +268,72 @@ def test_bulk_edit_sets_source_and_tags(client):
         ).headers["location"]
         == "/"
     )
+
+
+def _component_id(location: str) -> int:
+    return int(location.split("?")[0].rsplit("/", 1)[1])
+
+
+def test_components_flow(client, db):
+    from velotheque.tables import bike
+
+    with db.connect() as conn:
+        gravel = conn.execute(select(bike.c.id).where(bike.c.strava_gear_id == "b1")).scalar()
+        ride_id = conn.execute(select(activity.c.id).where(activity.c.source_id == 1)).scalar()
+    assert client.get("/components").status_code == 200
+
+    added = client.post(
+        "/components",
+        data={
+            "name": "KMC X11",
+            "kind": "Chain",
+            "bike_id": gravel,
+            "mounted_at": "2026-08-01T10:00",
+        },
+        follow_redirects=False,
+    )
+    assert added.status_code == 303
+    chain = _component_id(added.headers["location"])
+    client.post(
+        f"/components/{chain}/service-types",
+        data={"name": "Wax", "level": 1, "interval_value": 100, "interval_unit": "km"},
+    )
+    page = client.get(f"/components/{chain}")
+    assert "KMC X11" in page.text and "132 km / 100 km" in page.text
+    overview = client.get("/components")
+    assert "Due soon" in overview.text and "status-over" in overview.text
+
+    logged = client.post(
+        f"/components/{chain}/events",
+        data={"service_type_id": "", "notes": "", "next": "/components"},
+        follow_redirects=False,
+    )
+    assert "error=" in logged.headers["location"]
+    client.post(f"/components/{chain}/events", data={"service_type_id": "1", "next": "/components"})
+    assert "0 km / 100 km" in client.get(f"/components/{chain}").text
+
+    ride = client.get(f"/rides/{ride_id}")
+    assert "On the bike" in ride.text and f"/components/{chain}" in ride.text
+    explore = client.get(f"/?component={chain}")
+    assert "Rides done while it was mounted" in explore.text and "Col du Galibier" in explore.text
+
+    moved = client.post(
+        f"/components/{chain}/mount",
+        data={"bike_id": gravel, "at": "2026-10-01T10:00"},
+        follow_redirects=False,
+    )
+    assert "already+on+that+bike" in moved.headers["location"]
+    client.post(f"/components/{chain}/unmount", data={"at": "2026-09-02T00:00"})
+    overlap = client.post(
+        f"/components/{chain}/assignments",
+        data={"bike_id": gravel, "mounted_at": "2026-08-15T00:00", "removed_at": ""},
+        follow_redirects=False,
+    )
+    assert "already+on+a+bike" in overlap.headers["location"]
+    assert "Col du Galibier" in client.get(f"/?component={chain}").text
+    assert "Ride 2" not in client.get(f"/?component={chain}").text
+
+    client.post(f"/components/{chain}/retire", data={"at": "2026-10-01T00:00"})
+    assert "Retired" in client.get("/components").text
+    client.post(f"/components/{chain}/delete")
+    assert client.get(f"/components/{chain}").status_code == 404

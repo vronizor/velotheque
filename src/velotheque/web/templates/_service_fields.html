@@ -1,0 +1,9 @@
+<label>Name <input type="text" name="name" value="{{ s.name if s else '' }}" maxlength="80" required placeholder="e.g. Re-wax"></label>
+<label>Level <input type="number" name="level" value="{{ s.level if s else 1 }}" min="1" max="9" required class="narrow"></label>
+<label>Every <input type="number" name="interval_value" value="{{ '%g' | format(s.interval_value) if s else '' }}" min="0.1" step="any" required class="narrow"></label>
+<label>Unit
+  <select name="interval_unit">{% for u in units %}<option value="{{ u }}"{% if s and s.interval_unit == u %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
+<label>Counting
+  <select name="rides">
+    {% for value, label in [("all", "all rides"), ("outdoor", "outdoor only"), ("indoor", "indoor only")] %}<option value="{{ value }}"{% if s and s.rides == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></label>

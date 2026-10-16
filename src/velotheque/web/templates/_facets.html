@@ -26,6 +26,16 @@
   </fieldset>
   {% endif %}
 
+  {% if on_component %}
+  <fieldset>
+    <legend>Component</legend>
+    {% for raw, name in on_component %}
+      <label class="check"><input type="checkbox" name="component" value="{{ raw }}" form="filters" checked> <a href="/components/{{ raw }}">{{ name or "Component " ~ raw }}</a></label>
+    {% endfor %}
+    <p class="muted small">Rides done while it was mounted.</p>
+  </fieldset>
+  {% endif %}
+
   {% if show_routes %}
   <fieldset>
     <legend>Route tags</legend>
