@@ -387,7 +387,24 @@ function initRide() {
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": COLORS.ride, "line-width": 4 },
     });
-    map.addSource("selection", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    addProfileLayers(map, "selection");
+    const first = track.coordinates[0][0];
+    const last = track.coordinates.at(-1).at(-1);
+    new maplibregl.Marker({ color: "#2f7d32", scale: 0.7 }).setLngLat(first).addTo(map);
+    new maplibregl.Marker({ color: COLORS.highlight, scale: 0.7 }).setLngLat(last).addTo(map);
+    addProfileLayers(map, "cursor");
+  });
+  initProfile(map, track, "track");
+  initLayerToggles(map, "ride");
+  document.body.addEventListener("syncFinished", () => window.location.reload());
+}
+
+const EMPTY = { type: "FeatureCollection", features: [] };
+
+// The elevation chart's section highlight (drawn above the line) and hover dot (on top).
+function addProfileLayers(map, which) {
+  map.addSource(which, { type: "geojson", data: EMPTY });
+  if (which === "selection") {
     map.addLayer({
       id: "selection",
       type: "line",
@@ -395,21 +412,14 @@ function initRide() {
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": COLORS.selection, "line-width": 7 },
     });
-    const first = track.coordinates[0][0];
-    const last = track.coordinates.at(-1).at(-1);
-    new maplibregl.Marker({ color: "#2f7d32", scale: 0.7 }).setLngLat(first).addTo(map);
-    new maplibregl.Marker({ color: COLORS.highlight, scale: 0.7 }).setLngLat(last).addTo(map);
-    map.addSource("cursor", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  } else {
     map.addLayer({
       id: "cursor",
       type: "circle",
       source: "cursor",
       paint: { "circle-radius": 6, "circle-color": COLORS.highlight, "circle-stroke-color": "#fff", "circle-stroke-width": 2 },
     });
-  });
-  initProfile(map, track);
-  initLayerToggles(map, "ride");
-  document.body.addEventListener("syncFinished", () => window.location.reload());
+  }
 }
 
 function niceStep(range, count) {
@@ -477,7 +487,7 @@ function lineLengthKm(lines) {
   return total;
 }
 
-function initProfile(map, track) {
+function initProfile(map, track, lineLayer) {
   const el = document.getElementById("ride-profile");
   if (!el) return;
   const points = JSON.parse(el.dataset.profile); // [km, altitude, grade %, lng, lat]
@@ -644,7 +654,7 @@ function initProfile(map, track) {
   });
   el.addEventListener("pointerleave", () => dragFrom === null && hide());
   document.addEventListener("keydown", (e) => e.key === "Escape" && selection && select(null));
-  map.on("mousemove", "track", (e) => {
+  map.on("mousemove", lineLayer, (e) => {
     const { lng, lat } = e.lngLat;
     const k = Math.cos((lat * Math.PI) / 180) ** 2;
     let best = 0;
@@ -655,7 +665,7 @@ function initProfile(map, track) {
     });
     show(best);
   });
-  map.on("mouseleave", "track", hide);
+  map.on("mouseleave", lineLayer, hide);
 }
 
 const RESIZE_KEY = "velotheque.resize.";
@@ -765,7 +775,11 @@ function initRoute() {
       type: "line",
       source: "rides",
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": COLORS.ride, "line-opacity": 0.35, "line-width": 2 },
+      paint: {
+        "line-color": COLORS.ride,
+        "line-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.9, 0.35],
+        "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 3, 2],
+      },
     });
     map.addSource("route", { type: "geojson", data: line });
     map.addLayer({
@@ -785,9 +799,57 @@ function initRoute() {
         paint: { "line-color": COLORS.covered, "line-width": 5 },
       });
     }
+    map.addSource("ridden", { type: "geojson", data: EMPTY });
+    map.addLayer({
+      id: "ridden",
+      type: "line",
+      source: "ridden",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": COLORS.selection, "line-width": 7 },
+    });
+    addProfileLayers(map, "selection");
+    addProfileLayers(map, "cursor");
     linkPopups(map, "rides", "rides");
   });
+  initProfile(map, line, "route");
+  initRouteRides(map);
   initLayerToggles(map, "route");
+}
+
+// Rows of "Rides on this route": hovering shows the part of the route that ride covered
+// (fetched once per ride), clicking anywhere but the name zooms the map to it.
+function initRouteRides(map) {
+  const table = document.querySelector(".route-rides");
+  if (!table) return;
+  const cache = new Map();
+  let current = null;
+  const piece = (id) => {
+    if (!cache.has(id)) {
+      cache.set(id, fetch(`/routes/${table.dataset.route}/rides/${id}.geojson`).then((r) => (r.ok ? r.json() : null)));
+    }
+    return cache.get(id);
+  };
+  const highlight = async (id) => {
+    if (current !== null) map.setFeatureState({ source: "rides", id: current }, { hover: false });
+    current = id;
+    if (id === null) return map.getSource("ridden")?.setData(EMPTY);
+    map.setFeatureState({ source: "rides", id }, { hover: true });
+    const geometry = await piece(id);
+    if (current === id && geometry) map.getSource("ridden")?.setData(geometry);
+  };
+  table.addEventListener("mouseover", (e) => {
+    const row = e.target.closest("tr[data-ride]");
+    if (row && Number(row.dataset.ride) !== current) highlight(Number(row.dataset.ride));
+  });
+  table.addEventListener("mouseleave", () => highlight(null));
+  table.addEventListener("click", async (e) => {
+    const row = e.target.closest("tr[data-ride]");
+    if (!row || e.target.closest("a")) return;
+    const geometry = await piece(Number(row.dataset.ride));
+    const bounds = geometry && lineBounds([geometry]);
+    if (bounds) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    map.getContainer().scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
 }
 
 function linkPopups(map, layer, path) {
@@ -871,6 +933,16 @@ function initBulkEdit() {
   });
 }
 
+// Collapsible sections keep the reader's last choice (per section kind, not per page).
+function initCollapsibles() {
+  document.querySelectorAll("details[data-remember]").forEach((details) => {
+    const key = `velotheque.open.${details.dataset.remember}`;
+    const saved = storage(key);
+    if (saved !== null) details.open = saved === "1";
+    details.addEventListener("toggle", () => storage(key, details.open ? "1" : "0"));
+  });
+}
+
 function initLightbox() {
   const dialog = document.getElementById("lightbox");
   if (!dialog) return;
@@ -922,5 +994,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initTagSuggestions();
   initBulkEdit();
   initResizers();
+  initCollapsibles();
   initLightbox();
 });

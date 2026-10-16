@@ -89,7 +89,7 @@ def normalize_route(conn: Connection, route_id: int) -> None:
         text(
             """
             UPDATE route SET geometry = g, distance_m = ST_Length(g::geography),
-                             elevation_gain_m = :gain
+                             elevation_gain_m = :gain, altitude_m = CAST(:altitudes AS real[])
             FROM (SELECT ST_GeomFromText(:wkt, 4326) AS g) AS s
             WHERE id = :id
             """
@@ -97,6 +97,7 @@ def normalize_route(conn: Connection, route_id: int) -> None:
         {
             "wkt": _segments_wkt(segments),
             "gain": sum(elevation_gain(s) for s in altitudes) if has_elevation else None,
+            "altitudes": [a for s in altitudes for a in s] if has_elevation else None,
             "id": route_id,
         },
     )

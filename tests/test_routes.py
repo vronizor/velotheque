@@ -1,4 +1,5 @@
 import gzip
+import json
 import zipfile
 from datetime import UTC, datetime
 
@@ -8,6 +9,7 @@ from sqlalchemy import select, text
 from velotheque.derive import derive_activities, rebuild_derived
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
 from velotheque.geo import elevation_gain, elevation_profile
+from velotheque.queries import route_profile
 from velotheque.routes import clean_source, import_export_routes, import_files, import_library
 from velotheque.tables import activity, route, route_coverage, route_file, route_ride_overlap
 from velotheque.trackfiles import parse_route_file
@@ -126,6 +128,9 @@ def test_distance_does_not_bridge_tracks_and_elevation_is_summed(conn):
     found = conn.execute(select(route).where(route.c.id == route_id)).one()
     assert found.distance_m == pytest.approx(20_000, rel=0.01)
     assert found.elevation_gain_m == 50
+    assert len(found.altitude_m) == 101 + 101 and found.altitude_m[-1] == 50
+    profile = json.loads(route_profile(conn, route_id))
+    assert profile[-1][0] == pytest.approx(20, rel=0.01)  # the 10 km gap isn't counted
 
 
 def test_reimport_is_idempotent_and_merge_keeps_file_order(conn):

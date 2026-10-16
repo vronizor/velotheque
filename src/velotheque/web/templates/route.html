@@ -34,19 +34,22 @@
          data-line='{{ map.line }}' data-covered='{{ map.covered or "null" }}' data-rides='{{ map.rides }}'></div>
     <div class="resize-handle" data-resize="route-map" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to resize the map, double-click to reset"></div>
     <p class="muted small legend"><span class="key key-route"></span> route <span class="key key-covered"></span> ridden (within 30 m of a ride) <label class="check"><input type="checkbox" data-layer="rides" checked> <span class="key key-ride"></span> rides</label></p>
+    {% if profile %}
+      <div id="ride-profile" class="profile" data-profile='{{ profile }}' aria-label="Elevation profile"></div>
+    {% endif %}
   {% else %}
     <p class="muted no-track">No track points in this route's files.</p>
   {% endif %}
 
   <div class="route-columns">
-    <section>
-      <h2>Rides on this route</h2>
+    <details class="collapsible" data-remember="route-rides" open>
+      <summary><h2>Rides on this route <span class="muted">{{ rides|length }}</span></h2></summary>
       {% if rides %}
-      <table class="rides">
+      <table class="rides route-rides" data-route="{{ route.id }}">
         <thead><tr><th>Date</th><th>Name</th><th class="col-distance">On route</th><th class="col-distance">Of route</th></tr></thead>
         <tbody>
           {% for r in rides %}
-            <tr>
+            <tr data-ride="{{ r.id }}" title="Hover to see the part it rode, click to zoom to it">
               <td>{{ r.start_at_local | when("%Y-%m-%d") }}</td>
               <td class="col-name"><a href="/rides/{{ r.id }}">{{ r.name or "Untitled" }}</a></td>
               <td class="num">{{ r.overlap_m | km }} km</td>
@@ -58,7 +61,7 @@
       {% else %}
         <p class="muted">No ride follows this route for more than 100 m.</p>
       {% endif %}
-    </section>
+    </details>
 
     <section>
       <h2>Details</h2>

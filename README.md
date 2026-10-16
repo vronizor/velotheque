@@ -153,7 +153,7 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
 - Both are measured on the route's distinct roads: an out-and-back stretch is covered by riding it once.
 - They update when a route is imported and when a sync brings new rides; `rebuild-derived` recomputes everything (about 20 s for 88 routes × 341 rides on the Mac).
 
-**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Tick routes in the list to set their source or add/remove tags in one go. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue and lists the rides on it, with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides (collapsed under "On routes") and can draw them on its map ("show the routes it rides"); the route page can hide its rides the same way.
+**In Explore**, the Rides | Routes | Both toggle switches lists; routes are dashed blue lines on the map. Tick routes in the list to set their source or add/remove tags in one go. Route filters: tags, source, and ridden % (e.g. max 10% for routes you've barely touched); search, distance, elevation and map areas apply to routes too. The route page shows the ridden parts in dark blue, has the same elevation chart as a ride (with section measuring), and lists the rides on it (hover a row to see the part that ride covered, click it to zoom there), with a link that opens them in Explore (`overlaps_route=<id>:<min %>`, 30% when no minimum is given). A ride's page lists the routes it rides (collapsed under "On routes") and can draw them on its map ("show the routes it rides"); the route page can hide its rides the same way.
 
 **Ride page:** the map can be resized by dragging the bar under it. The elevation chart is built from the altitude and distance streams, with about 1,000 samples. Hovering it shows km, altitude and grade, and a dot on the map. The grade is averaged over ±100 m so GPS noise doesn't show as 30% ramps. Hovering the track on the map moves the chart cursor. Drag across the chart to measure a section: distance, ↗ gain and ↘ loss (same 10 m rule as the totals), average grade, highlighted in yellow on the map, with "Zoom map"; a click or Esc clears it. Videos open in the same lightbox as photos (‹ › or the arrow keys).
 
@@ -281,6 +281,7 @@ docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
 docker compose exec app velotheque routes import FILE… [--merge] [--name N] [--source S] [--tag T]
 docker compose exec app velotheque routes import-library DIR [--separate SUBFOLDER] [--source S] [--tag T]
 docker compose exec app velotheque routes import-export /data/imports/export_XXXX.zip
+docker compose exec app velotheque routes normalize  # recompute routes from their files (e.g. after an upgrade adds a field)
 docker compose exec app velotheque normalize         # rebuild normalized tables (rides and routes) from raw (--force-tracks re-parses export files)
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables
 docker compose exec app velotheque backup-status --ok|--error MSG   # used by the backup service

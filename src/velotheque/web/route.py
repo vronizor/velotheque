@@ -99,6 +99,7 @@ def route_page(route_id: int, request: Request, conn: Connection = Depends(get_c
         {
             "route": found,
             "map": queries.route_map(conn, route_id),
+            "profile": queries.route_profile(conn, route_id),
             "rides": queries.route_rides(conn, route_id),
             "files": queries.route_files(conn, route_id),
             "tags": queries.all_tags(conn),
@@ -138,6 +139,14 @@ def route_delete(route_id: int, conn: Connection = Depends(get_conn)):
     conn.execute(delete(route).where(route.c.id == route_id))
     conn.commit()
     return RedirectResponse("/?entity=routes", status_code=303)
+
+
+@router.get("/routes/{route_id}/rides/{activity_id}.geojson")
+def ride_on_route(route_id: int, activity_id: int, conn: Connection = Depends(get_conn)):
+    found = queries.ride_on_route(conn, route_id, activity_id)
+    if found is None:
+        raise HTTPException(404, "This ride doesn't follow this route")
+    return Response(found, media_type="application/geo+json")
 
 
 @router.get("/routes/{route_id}/files/{file_id}")

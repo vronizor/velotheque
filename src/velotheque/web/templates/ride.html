@@ -45,7 +45,7 @@
   {% endif %}
 
   {% if routes %}
-    <details class="ride-routes">
+    <details class="ride-routes collapsible" data-remember="ride-routes">
       <summary><h2>On routes <span class="muted">{{ routes|length }}</span></h2></summary>
       <ul class="plain-list">
         {% for r in routes %}

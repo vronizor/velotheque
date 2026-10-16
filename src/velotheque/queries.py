@@ -5,7 +5,7 @@ from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column,
 
 from velotheque.exportrow import gear_id, sport_type
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
-from velotheque.geo import elevation_profile
+from velotheque.geo import elevation_profile, haversine_m
 from velotheque.tables import (
     ROUTE_SOURCES,
     activity,
@@ -355,10 +355,13 @@ def all_sources(conn: Connection, suggestions: bool = True) -> list[str]:
     return [*used, *(s for s in ROUTE_SOURCES if s.lower() not in lowered)]
 
 
+ROUTE_BULKY = {"geometry", "altitude_m", "search_tsv"}
+
+
 def route_detail(conn: Connection, route_id: int):
     return conn.execute(
         select(
-            route,
+            *(c for c in route.c if c.name not in ROUTE_BULKY),
             route_coverage.c.coverage_fraction,
             route_coverage.c.covered_m,
             route_coverage.c.length_m.label("ridable_m"),
@@ -389,6 +392,26 @@ def route_file_content(conn: Connection, route_id: int, file_id: int):
     ).first()
 
 
+def route_profile(conn: Connection, route_id: int) -> str | None:
+    """Like ride_profile; distances are measured along the route's pieces without bridging
+    the gaps between them, as distance_m is."""
+    found = conn.execute(
+        select(route.c.altitude_m, func.ST_AsGeoJSON(route.c.geometry, 6)).where(
+            route.c.id == route_id
+        )
+    ).first()
+    if found is None or not found.altitude_m:
+        return None
+    coords, distances = [], []
+    for line in json.loads(found[1])["coordinates"]:
+        for i, point in enumerate(line):
+            step = haversine_m(line[i - 1][::-1], point[::-1]) if i else 0.0
+            distances.append((distances[-1] if distances else 0.0) + step)
+            coords.append(point)
+    profile = elevation_profile(distances, found.altitude_m, coords)
+    return json.dumps(profile, separators=(",", ":")) if profile else None
+
+
 def route_map(conn: Connection, route_id: int) -> dict:
     """Route (detail), its ridden parts and the overlapping rides, as GeoJSON strings."""
     s = route_simplified
@@ -414,6 +437,16 @@ def route_map(conn: Connection, route_id: int) -> dict:
         [route_ride_overlap.c.route_id == route_id],
     )
     return {"line": line, "covered": covered, "rides": rides}
+
+
+def ride_on_route(conn: Connection, route_id: int, activity_id: int) -> str | None:
+    """The part of a route one ride covered, as GeoJSON (~1 m simplification)."""
+    o = route_ride_overlap
+    return conn.execute(
+        select(func.ST_AsGeoJSON(func.ST_Simplify(o.c.covered, 1e-5), 6)).where(
+            o.c.route_id == route_id, o.c.activity_id == activity_id
+        )
+    ).scalar()
 
 
 def route_rides(conn: Connection, route_id: int):

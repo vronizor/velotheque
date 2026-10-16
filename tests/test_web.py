@@ -190,6 +190,7 @@ def test_route_import_page_edit_download_delete(client, db):
     route_url = response.headers["location"]
     page = client.get(route_url)
     assert "Sierra leg" in page.text and 'id="route-map"' in page.text
+    assert 'id="ride-profile"' in page.text and "[0.0,100.0,6" in page.text
     assert "Show these 2 rides in Explore" in page.text
 
     saved = client.post(
@@ -211,6 +212,9 @@ def test_route_import_page_edit_download_delete(client, db):
     assert "Renamed" in ride_page and 'data-layer="routes"' in ride_page
     on_map = client.get(f"/rides/{ride_id}/routes.geojson").json()["features"]
     assert [f["properties"]["name"] for f in on_map] == ["Renamed"]
+    ridden = client.get(f"{route_url}/rides/{ride_id}.geojson").json()
+    assert ridden["type"] == "MultiLineString" and 'data-ride="' in client.get(route_url).text
+    assert client.get(f"{route_url}/rides/987654.geojson").status_code == 404
 
     assert client.post(f"{route_url}/delete", follow_redirects=False).status_code == 303
     assert client.get(route_url).status_code == 404

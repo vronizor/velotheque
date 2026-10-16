@@ -265,6 +265,8 @@ route = Table(
     Column("geometry", OPTIONAL_MULTILINE),
     Column("distance_m", Double, nullable=False, server_default=text("0")),
     Column("elevation_gain_m", Double),
+    # One value per vertex of geometry, in order (null where the file had no <ele>).
+    Column("altitude_m", ARRAY(REAL)),
     Column("search_tsv", TSVECTOR, Computed(ROUTE_SEARCH_TSV, persisted=True)),
     Index("ix_route_geometry", "geometry", postgresql_using="gist"),
     Index("ix_route_search_tsv", "search_tsv", postgresql_using="gin"),

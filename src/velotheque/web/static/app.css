@@ -237,11 +237,11 @@ th.col-pick, td.col-pick { width: 1.5rem; padding-right: 0; }
 .bulk[hidden] { display: none; }
 .bulk input[type="text"] { font: inherit; font-size: 0.9rem; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; width: 9rem; }
 .bulk-count { font-size: 0.9rem; margin-right: 4px; }
-details.ride-routes > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; }
-details.ride-routes > summary::-webkit-details-marker { display: none; }
-details.ride-routes > summary::before { content: "▸"; color: var(--muted); font-size: 1.2rem; width: 0.8em; }
-details.ride-routes[open] > summary::before { content: "▾"; }
-details.ride-routes > summary h2 { margin-block: 0.6em; }
+details.collapsible > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; }
+details.collapsible > summary::-webkit-details-marker { display: none; }
+details.collapsible > summary::before { content: "▸"; color: var(--muted); font-size: 1.2rem; width: 0.8em; }
+details.collapsible[open] > summary::before { content: "▾"; }
+details.collapsible > summary h2 { margin-block: 0.6em; }
 
 .resize-handle { height: 10px; margin: 2px 0 4px; cursor: ns-resize; touch-action: none; display: flex; align-items: center; justify-content: center; }
 .resize-handle::after { content: ""; width: 44px; height: 4px; border-radius: 2px; background: var(--line); }
@@ -279,3 +279,5 @@ details.ride-routes > summary h2 { margin-block: 0.6em; }
 .profile-selection { min-height: 1.6em; margin: 0 0 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .profile-selection strong { color: var(--ink); }
 .profile-selection .link-button { font-size: inherit; }
+.route-rides tbody tr { cursor: pointer; }
+.route-rides tbody tr:hover { background: var(--cream); }

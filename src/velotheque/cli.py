@@ -118,6 +118,17 @@ def cmd_routes_import(args) -> None:
     _print_report(report)
 
 
+def cmd_routes_normalize(args) -> None:
+    from velotheque.db import get_engine
+    from velotheque.derive import derive_routes
+    from velotheque.routes import normalize_routes
+
+    with get_engine().begin() as conn:
+        ids = normalize_routes(conn)
+        derive_routes(conn, ids)
+    print(f"normalized {len(ids)} routes")
+
+
 def cmd_routes_import_library(args) -> None:
     from velotheque.db import get_engine
     from velotheque.routes import import_library
@@ -198,6 +209,9 @@ def main(argv: list[str] | None = None) -> None:
     library.add_argument("--source", default="file", help="where the routes come from")
     library.add_argument("--tag", action="append", default=[], help="tag (repeatable)")
     library.set_defaults(func=cmd_routes_import_library)
+    routes.add_parser(
+        "normalize", help="recompute every route's line, distance and elevation from its files"
+    ).set_defaults(func=cmd_routes_normalize)
     route_export = routes.add_parser(
         "import-export", help="import the routes drawn on Strava from a bulk export zip"
     )
