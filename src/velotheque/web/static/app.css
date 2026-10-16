@@ -281,3 +281,6 @@ details.collapsible > summary h2 { margin-block: 0.6em; }
 .profile-selection .link-button { font-size: inherit; }
 .pairs tbody tr { cursor: pointer; }
 .pairs tbody tr:hover { background: var(--cream); }
+.profile .marks rect { fill: rgb(242 183 5 / 0.35); }
+.maplibregl-ctrl button.reset-view { font-size: 1.1rem; line-height: 1; color: var(--ink) !important; background: #fff; padding: 0; }
+.maplibregl-ctrl button.reset-view:hover { background: #f2f2f2; }

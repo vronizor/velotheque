@@ -67,6 +67,29 @@ function addAttribution(map) {
   map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 }
 
+// A ↺ button under the zoom buttons that fits the map back to its starting view.
+function addResetView(map, bounds) {
+  map.addControl(
+    {
+      onAdd() {
+        const group = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" });
+        const button = Object.assign(document.createElement("button"), {
+          type: "button",
+          className: "reset-view",
+          title: "Reset zoom",
+          textContent: "↺",
+        });
+        button.setAttribute("aria-label", "Reset zoom");
+        button.addEventListener("click", () => map.fitBounds(bounds, { padding: 40 }));
+        group.append(button);
+        return group;
+      },
+      onRemove() {},
+    },
+    "top-right",
+  );
+}
+
 function initExplore() {
   const el = document.getElementById("map");
   if (!el) return;
@@ -362,13 +385,9 @@ function initRide() {
   const track = JSON.parse(el.dataset.track);
   const map = new maplibregl.Map({ container: el, style: el.dataset.style, center: [2.5, 46.5], zoom: 5 });
   addAttribution(map);
-  const coords = track.coordinates.flat();
-  const xs = coords.map((c) => c[0]);
-  const ys = coords.map((c) => c[1]);
-  map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], {
-    padding: 40,
-    duration: 0,
-  });
+  const bounds = lineBounds([track]);
+  map.fitBounds(bounds, { padding: 40, duration: 0 });
+  addResetView(map, bounds);
   map.on("load", () => {
     map.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     map.addLayer({
@@ -400,8 +419,7 @@ function initRide() {
     new maplibregl.Marker({ color: COLORS.highlight, scale: 0.7 }).setLngLat(last).addTo(map);
     addProfileLayers(map, "cursor");
   });
-  initProfile(map, track, "track");
-  initPairRows(map);
+  initPairRows(map, initProfile(map, track, "track"));
   initLayerToggles(map, "ride");
   document.body.addEventListener("syncFinished", () => window.location.reload());
 }
@@ -494,6 +512,46 @@ function lineLengthKm(lines) {
   return total;
 }
 
+// Runs [from, to] of profile points lying within `metres` of a line (the yellow section on
+// the map), found with a coarse grid of the line's segments.
+function runsNear(points, geometry, metres = 40) {
+  const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates];
+  const cell = 0.002;
+  const pad = metres / 70000;
+  const grid = new Map();
+  for (const line of lines) {
+    for (let i = 1; i < line.length; i++) {
+      const [a, b] = [line[i - 1], line[i]];
+      for (let cx = Math.floor((Math.min(a[0], b[0]) - pad) / cell); cx <= Math.floor((Math.max(a[0], b[0]) + pad) / cell); cx++) {
+        for (let cy = Math.floor((Math.min(a[1], b[1]) - pad) / cell); cy <= Math.floor((Math.max(a[1], b[1]) + pad) / cell); cy++) {
+          const k = `${cx},${cy}`;
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push([a, b]);
+        }
+      }
+    }
+  }
+  const near = ([, , , lng, lat]) => {
+    const kx = 111320 * Math.cos((lat * Math.PI) / 180);
+    const ky = 110540;
+    for (const [a, b] of grid.get(`${Math.floor(lng / cell)},${Math.floor(lat / cell)}`) || []) {
+      const [ax, ay, bx, by] = [(a[0] - lng) * kx, (a[1] - lat) * ky, (b[0] - lng) * kx, (b[1] - lat) * ky];
+      const [dx, dy] = [bx - ax, by - ay];
+      const t = dx || dy ? Math.min(1, Math.max(0, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+      if (Math.hypot(ax + t * dx, ay + t * dy) <= metres) return true;
+    }
+    return false;
+  };
+  const runs = [];
+  points.forEach((p, i) => {
+    if (!near(p)) return;
+    const last = runs.at(-1);
+    if (last && i - last[1] <= 3) last[1] = i;
+    else runs.push([i, i]);
+  });
+  return runs;
+}
+
 function initProfile(map, track, lineLayer) {
   const el = document.getElementById("ride-profile");
   if (!el) return;
@@ -513,8 +571,9 @@ function initProfile(map, track, lineLayer) {
   const hint = "Drag across the chart to measure a section.";
   // Stream distances and the drawn line's length differ a little; scale between them.
   const trackScale = lineLengthKm(track.coordinates) / (km1 - km0 || 1);
-  let svg, cursor, dot, band, x, y;
+  let svg, cursor, dot, band, marks, x, y;
   let selection = null; // [from index, to index]
+  let marked = []; // runs highlighted from outside (a row of the ride/route table)
   let dragFrom = null;
 
   function node(name, attrs, parent = svg) {
@@ -544,10 +603,22 @@ function initProfile(map, track, lineLayer) {
     const bottom = y(altMin);
     node("path", { class: "area", d: `${line}L${x(km1)},${bottom}L${x(km0)},${bottom}Z` });
     node("path", { class: "line", d: line });
+    marks = node("g", { class: "marks" });
     band = node("rect", { class: "band", y: pad.top - 4, height: bottom - pad.top + 4, visibility: "hidden" });
     cursor = node("line", { class: "cursor", y1: pad.top - 4, y2: bottom, visibility: "hidden" });
     dot = node("circle", { class: "dot", r: 4, visibility: "hidden" });
     drawBand();
+    drawMarks();
+  }
+
+  function drawMarks() {
+    if (!marks) return;
+    const bottom = y(altMin);
+    marks.replaceChildren();
+    for (const [a, b] of marked) {
+      const [x0, x1] = [x(points[a][0]), x(points[b][0])];
+      node("rect", { x: x0, width: Math.max(x1 - x0, 2), y: pad.top - 4, height: bottom - pad.top + 4 }, marks);
+    }
   }
 
   function drawBand() {
@@ -673,6 +744,12 @@ function initProfile(map, track, lineLayer) {
     show(best);
   });
   map.on("mouseleave", lineLayer, hide);
+  return {
+    mark(geometry) {
+      marked = geometry ? runsNear(points, geometry) : [];
+      drawMarks();
+    },
+  };
 }
 
 const RESIZE_KEY = "velotheque.resize.";
@@ -774,7 +851,10 @@ function initRoute() {
   const map = new maplibregl.Map({ container: el, style: el.dataset.style, center: [2.5, 46.5], zoom: 5 });
   addAttribution(map);
   const bounds = lineBounds([line]);
-  if (bounds) map.fitBounds(bounds, { padding: 40, duration: 0 });
+  if (bounds) {
+    map.fitBounds(bounds, { padding: 40, duration: 0 });
+    addResetView(map, bounds);
+  }
   map.on("load", () => {
     map.addSource("rides", { type: "geojson", data: rides });
     map.addLayer({
@@ -811,47 +891,68 @@ function initRoute() {
     addProfileLayers(map, "cursor");
     linkPopups(map, "rides", "rides");
   });
-  initProfile(map, line, "route");
-  initPairRows(map);
+  initPairRows(map, initProfile(map, line, "route"));
   initLayerToggles(map, "route");
 }
 
-// The ride ↔ route tables (rides on a route, routes of a ride): hovering a row shows the part
-// of the route the ride covered (fetched once) and brings the other line forward; clicking
-// anywhere but the name zooms the map to that part.
-function initPairRows(map) {
+// The ride ↔ route tables (rides on a route, routes of a ride). Hovering a row previews the
+// part of the route the ride covered (fetched once): yellow on the map and on the elevation
+// chart, with the other line brought forward. Clicking a row (anywhere but the name) selects
+// it like in Explore: it stays highlighted and the map zooms to it, until the row is clicked
+// again, Esc, or a click elsewhere on the page (the map and chart excepted).
+function initPairRows(map, profile) {
   const table = document.querySelector("table.pairs");
   if (!table) return;
   const source = table.dataset.source;
   const cache = new Map();
-  let current = null;
+  let shown = null;
+  let selected = null;
   const piece = (row) => {
     if (!cache.has(row.dataset.piece)) {
       cache.set(row.dataset.piece, fetch(row.dataset.piece).then((r) => (r.ok ? r.json() : null)));
     }
     return cache.get(row.dataset.piece);
   };
-  const highlight = async (row) => {
-    if (current) map.setFeatureState({ source, id: Number(current.dataset.id) }, { hover: false });
-    current = row;
-    if (!row) return map.getSource("ridden")?.setData(EMPTY);
+  const show = async (row) => {
+    if (row === shown) return;
+    if (shown) map.setFeatureState({ source, id: Number(shown.dataset.id) }, { hover: false });
+    shown = row;
+    if (!row) {
+      map.getSource("ridden")?.setData(EMPTY);
+      profile?.mark(null);
+      return;
+    }
     map.setFeatureState({ source, id: Number(row.dataset.id) }, { hover: true });
     const geometry = await piece(row);
-    if (current === row && geometry) map.getSource("ridden")?.setData(geometry);
+    if (shown !== row || !geometry) return;
+    map.getSource("ridden")?.setData(geometry);
+    profile?.mark(geometry);
+  };
+  const select = async (row) => {
+    selected?.classList.remove("selected");
+    selected = row;
+    row?.classList.add("selected");
+    show(row);
+    if (!row) return;
+    const geometry = await piece(row);
+    const bounds = geometry && lineBounds([geometry]);
+    if (bounds && selected === row) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    map.getContainer().scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
   table.addEventListener("mouseover", (e) => {
     const row = e.target.closest("tr[data-piece]");
-    if (row && row !== current) highlight(row);
+    if (row) show(row);
   });
-  table.addEventListener("mouseleave", () => highlight(null));
-  table.addEventListener("click", async (e) => {
-    const row = e.target.closest("tr[data-piece]");
-    if (!row || e.target.closest("a")) return;
-    const geometry = await piece(row);
-    const bounds = geometry && lineBounds([geometry]);
-    if (bounds) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
-    map.getContainer().scrollIntoView({ behavior: "smooth", block: "nearest" });
+  table.addEventListener("mouseleave", () => show(selected));
+  document.addEventListener("click", (e) => {
+    const row = e.target.closest?.("table.pairs tr[data-piece]");
+    if (row) {
+      if (!e.target.closest("a")) select(row === selected ? null : row);
+    } else if (selected && !e.target.closest?.(".ride-map, .profile, .profile-selection, .resize-handle, .legend")) {
+      select(null);
+    }
   });
+  document.addEventListener("keydown", (e) => e.key === "Escape" && selected && select(null));
 }
 
 function addRiddenLayer(map) {
