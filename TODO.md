@@ -51,7 +51,7 @@ Decisions (owner, 2026-10-16): GPX only (the library's .geojson files are point-
 - [x] Tests: parser, elevation, idempotent import + merge order, export routes, overlap on synthetic geometries (half, offset, crossing, out-and-back, merged coverage, sync update, rebuild), filters + facets, web (95 total)
 - [x] Real data locally: 36 library routes (5 races merged from stages) + 52 Strava routes (15 byte-identical duplicates skipped, 10 running skipped); import ~0.5 s/route, rebuild 18 s on the Mac; routes GeoJSON 0.62 MB gz; headless check of Explore (routes/both/tag filter/selection), route pages, import form, ride page, phone
 - [x] README
-- [ ] Deploy to the Pi + import there (owner)
+- [x] Deploy to the Pi + import there (owner, 2026-10-16): library via `import-library --separate personal` = 40 routes, export = 52 routes / 25 skipped (as on the Mac). 4 races came in twice: the library has both a single `<race>.gpx` and a `<race>/` stage folder with identical points (same km, same point count) → owner deletes one of each
 - [x] `routes import-library DIR` (one route per top-level file, subfolders merged and named after the folder, .geojson ignored), so the Pi import is one command
 - [x] Static CSS/JS URLs carry a content hash (`?v=`) so a deploy isn't hidden by the browser cache; ride page "On routes" marker inline with the heading (owner: it sat on its own line)
 - [x] Owner feedback (2026-10-16): source is free text (migration 0006 drops the check, renames to `Strava` / `gpx.studio`; reuses an existing spelling case-insensitively; suggestions in a datalist), editable on the route page, badge on every route; bulk edit from the Explore list (tick routes → set source, add/remove tags); "On routes" on the ride page collapsible (closed by default)
