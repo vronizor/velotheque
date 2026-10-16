@@ -988,12 +988,14 @@ function initLightbox() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Saved map sizes first: MapLibre ignores the first resize it observes, so a container
+  // resized after the map is created would keep the default-size canvas.
+  initResizers();
   initExplore();
   initRide();
   initRoute();
   initTagSuggestions();
   initBulkEdit();
-  initResizers();
   initCollapsibles();
   initLightbox();
 });
