@@ -376,7 +376,12 @@ function initRide() {
       type: "line",
       source: "routes",
       layout: { "line-join": "round", visibility: "none" },
-      paint: { "line-color": COLORS.route, "line-width": 3, "line-dasharray": [2, 1.5] },
+      paint: {
+        "line-color": COLORS.route,
+        "line-width": 3,
+        "line-dasharray": [2, 1.5],
+        "line-opacity": HOVER_OPACITY(0.6),
+      },
     });
     linkPopups(map, "routes", "routes");
     map.addSource("track", { type: "geojson", data: track });
@@ -387,6 +392,7 @@ function initRide() {
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": COLORS.ride, "line-width": 4 },
     });
+    addRiddenLayer(map);
     addProfileLayers(map, "selection");
     const first = track.coordinates[0][0];
     const last = track.coordinates.at(-1).at(-1);
@@ -395,6 +401,7 @@ function initRide() {
     addProfileLayers(map, "cursor");
   });
   initProfile(map, track, "track");
+  initPairRows(map);
   initLayerToggles(map, "ride");
   document.body.addEventListener("syncFinished", () => window.location.reload());
 }
@@ -777,7 +784,7 @@ function initRoute() {
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
         "line-color": COLORS.ride,
-        "line-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.9, 0.35],
+        "line-opacity": HOVER_OPACITY(0.35),
         "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 3, 2],
       },
     });
@@ -799,58 +806,66 @@ function initRoute() {
         paint: { "line-color": COLORS.covered, "line-width": 5 },
       });
     }
-    map.addSource("ridden", { type: "geojson", data: EMPTY });
-    map.addLayer({
-      id: "ridden",
-      type: "line",
-      source: "ridden",
-      layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": COLORS.selection, "line-width": 7 },
-    });
+    addRiddenLayer(map);
     addProfileLayers(map, "selection");
     addProfileLayers(map, "cursor");
     linkPopups(map, "rides", "rides");
   });
   initProfile(map, line, "route");
-  initRouteRides(map);
+  initPairRows(map);
   initLayerToggles(map, "route");
 }
 
-// Rows of "Rides on this route": hovering shows the part of the route that ride covered
-// (fetched once per ride), clicking anywhere but the name zooms the map to it.
-function initRouteRides(map) {
-  const table = document.querySelector(".route-rides");
+// The ride ↔ route tables (rides on a route, routes of a ride): hovering a row shows the part
+// of the route the ride covered (fetched once) and brings the other line forward; clicking
+// anywhere but the name zooms the map to that part.
+function initPairRows(map) {
+  const table = document.querySelector("table.pairs");
   if (!table) return;
+  const source = table.dataset.source;
   const cache = new Map();
   let current = null;
-  const piece = (id) => {
-    if (!cache.has(id)) {
-      cache.set(id, fetch(`/routes/${table.dataset.route}/rides/${id}.geojson`).then((r) => (r.ok ? r.json() : null)));
+  const piece = (row) => {
+    if (!cache.has(row.dataset.piece)) {
+      cache.set(row.dataset.piece, fetch(row.dataset.piece).then((r) => (r.ok ? r.json() : null)));
     }
-    return cache.get(id);
+    return cache.get(row.dataset.piece);
   };
-  const highlight = async (id) => {
-    if (current !== null) map.setFeatureState({ source: "rides", id: current }, { hover: false });
-    current = id;
-    if (id === null) return map.getSource("ridden")?.setData(EMPTY);
-    map.setFeatureState({ source: "rides", id }, { hover: true });
-    const geometry = await piece(id);
-    if (current === id && geometry) map.getSource("ridden")?.setData(geometry);
+  const highlight = async (row) => {
+    if (current) map.setFeatureState({ source, id: Number(current.dataset.id) }, { hover: false });
+    current = row;
+    if (!row) return map.getSource("ridden")?.setData(EMPTY);
+    map.setFeatureState({ source, id: Number(row.dataset.id) }, { hover: true });
+    const geometry = await piece(row);
+    if (current === row && geometry) map.getSource("ridden")?.setData(geometry);
   };
   table.addEventListener("mouseover", (e) => {
-    const row = e.target.closest("tr[data-ride]");
-    if (row && Number(row.dataset.ride) !== current) highlight(Number(row.dataset.ride));
+    const row = e.target.closest("tr[data-piece]");
+    if (row && row !== current) highlight(row);
   });
   table.addEventListener("mouseleave", () => highlight(null));
   table.addEventListener("click", async (e) => {
-    const row = e.target.closest("tr[data-ride]");
+    const row = e.target.closest("tr[data-piece]");
     if (!row || e.target.closest("a")) return;
-    const geometry = await piece(Number(row.dataset.ride));
+    const geometry = await piece(row);
     const bounds = geometry && lineBounds([geometry]);
     if (bounds) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
     map.getContainer().scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 }
+
+function addRiddenLayer(map) {
+  map.addSource("ridden", { type: "geojson", data: EMPTY });
+  map.addLayer({
+    id: "ridden",
+    type: "line",
+    source: "ridden",
+    layout: { "line-join": "round", "line-cap": "round" },
+    paint: { "line-color": COLORS.selection, "line-width": 7 },
+  });
+}
+
+const HOVER_OPACITY = (base) => ["case", ["boolean", ["feature-state", "hover"], false], 0.95, base];
 
 function linkPopups(map, layer, path) {
   map.on("mousemove", layer, () => (map.getCanvas().style.cursor = "pointer"));

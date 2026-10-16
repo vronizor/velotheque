@@ -279,5 +279,5 @@ details.collapsible > summary h2 { margin-block: 0.6em; }
 .profile-selection { min-height: 1.6em; margin: 0 0 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .profile-selection strong { color: var(--ink); }
 .profile-selection .link-button { font-size: inherit; }
-.route-rides tbody tr { cursor: pointer; }
-.route-rides tbody tr:hover { background: var(--cream); }
+.pairs tbody tr { cursor: pointer; }
+.pairs tbody tr:hover { background: var(--cream); }

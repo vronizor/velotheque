@@ -469,7 +469,14 @@ def route_rides(conn: Connection, route_id: int):
 def ride_routes(conn: Connection, activity_id: int):
     o = route_ride_overlap
     return conn.execute(
-        select(route.c.id, route.c.name, route.c.tags, o.c.overlap_m, o.c.overlap_fraction)
+        select(
+            route.c.id,
+            route.c.name,
+            route.c.tags,
+            route.c.distance_m,
+            o.c.overlap_m,
+            o.c.overlap_fraction,
+        )
         .join(o, o.c.route_id == route.c.id)
         .where(o.c.activity_id == activity_id)
         .order_by(o.c.overlap_m.desc())
