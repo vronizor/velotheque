@@ -13,7 +13,7 @@ from psycopg import errors
 from sqlalchemy import Connection, delete, func, insert, select, text, update
 from sqlalchemy.exc import IntegrityError
 
-from velotheque.config import get_settings
+from velotheque.config import CYCLING_SPORT_TYPES, get_settings
 from velotheque.tables import (
     INTERVAL_UNITS,
     RIDE_SCOPES,
@@ -581,12 +581,11 @@ def rides_without_bike(conn: Connection, limit: int = 20):
     """How many rides have no bike; the latest outdoor ones."""
     r = activity
     indoor = r.c.trainer | (r.c.type == "VirtualRide")
-    counts = conn.execute(
-        select(func.count(), func.count().filter(indoor)).where(r.c.bike_id.is_(None))
-    ).one()
+    no_bike = r.c.bike_id.is_(None) & r.c.type.in_(CYCLING_SPORT_TYPES)
+    counts = conn.execute(select(func.count(), func.count().filter(indoor)).where(no_bike)).one()
     latest = conn.execute(
         select(r.c.id, r.c.name, r.c.type, r.c.start_at_local, r.c.distance_m)
-        .where(r.c.bike_id.is_(None), ~indoor)
+        .where(no_bike, ~indoor)
         .order_by(r.c.start_at.desc())
         .limit(limit)
     ).all()

@@ -2,7 +2,7 @@
 
 <img src="docs/logo.png" alt="" width="96" align="right">
 
-A self-hosted explorer for my own Strava cycling history, running on a Raspberry Pi. It's single-user and read-only towards Strava.
+A self-hosted explorer for my own Strava cycling history (plus runs, walks and hikes, hidden by default), running on a Raspberry Pi. It's single-user and read-only towards Strava.
 
 All six milestones (this version) cover:
 - Strava OAuth and a resumable **Sync now** (activities, details, streams)
@@ -107,7 +107,7 @@ The access token shown on Strava's API page only has `read` scope, so it isn't u
 - **Rate limits** are read from Strava's response headers. When fewer than 3 calls remain in the 15-minute or daily window, the job stops with status `rate_limited` and shows when to try again. The next click resumes where it stopped.
 - **Change detection** ignores kudos and other counters. A rename, a different bike or a cropped distance triggers a re-fetch.
 - **Fixing a wrong title or bike:** edit it on Strava, then click **↻ Refresh** on the ride page.
-- **Rides that are left out:** only cycling sport types are normalized. Other activities are kept in the raw tables.
+- **Which activities are kept:** cycling sport types, plus Run, TrailRun, Walk and Hike ("on foot"). Other activities (swims, treadmill runs, …) stay in the raw tables only.
 
 ## Importing the Strava bulk export
 
@@ -175,6 +175,12 @@ docker compose exec app velotheque routes import-export /data/imports/export_XXX
   - **Filter to this view**: uses the visible map.
   - **Reset map**: clears the map area and the selected ride, and zooms back to all results.
   - A ride matches if its track crosses the area. Panning on its own never filters.
+
+## Runs, walks and hikes
+
+- They're synced, imported, tagged with regions and drawn like rides, but **hidden by default**: tick **Runs, walks & hikes** at the top of the Type filter (`foot=1`) to show them, in green on the map. Saved views and links keep the choice.
+- **Kept apart from cycling:** totals show rides and on-foot activities on separate lines; they're never matched against routes (route coverage stays about riding); shoe gear never becomes a bike, and they don't appear in "Rides with no bike".
+- Their page shows the average pace (min/km) instead of speed and bike.
 
 ## Who you rode with
 

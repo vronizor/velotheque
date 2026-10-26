@@ -33,7 +33,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Backup: first run (531 photos), restore test from Drive OK, nightly timer, reboot test OK
 - [ ] Move data to the SSD before Milestone 4 (see Pi deployment notes)
 
-## Open in gpx.studio (owner request, 2026-10-16)
+## Runs, walks and hikes (owner request, 2026-10-26)
+Decisions (owner, 2026-10-26): Run, TrailRun, Walk, Hike (no treadmill/VirtualRun); hidden by default, one switch to show them; never matched against routes; photos included (older ones arrive with the next export re-import, only cycling media were extracted before).
+Already in raw: every Strava summary and export row (with track files) is stored whatever the sport, so turning them on is a `velotheque normalize`, plus detail + streams calls only for foot activities newer than the export.
+- [x] `FOOT_SPORT_TYPES` in config, ingested alongside cycling (normalize, sync pending queue, export import incl. media)
+- [x] Shoe gear (`g…` ids) never becomes a bike (normalize `_bike_id`, raw gear)
+- [x] Route overlaps/coverage: cycling types only (also in `rebuild-derived`)
+- [x] Filter `foot` with a `default` on `Field` (absent = cycling only); switch at the top of Type with its count; foot types listed after cycling ones, only when the switch is on (or one is ticked)
+- [x] Totals split into rides / on foot; map draws foot tracks in green; ride page: pace instead of speed, no Bike, "People"
+- [x] "Rides with no bike" and export unmatched-gear lists: cycling only; links into Explore from people/regions/foot pages carry `foot=1`
+- [x] Tests (144), headless check on seeded data (desktop + 390 px, no horizontal scroll)
+- [ ] Deploy (owner): `git pull`, rebuild, then `docker compose exec app velotheque normalize`, then Sync now
+
+
 VERIFY (2026-10-16, gpx.studio source on GitHub): its "Open in" link is `https://gpx.studio/app?files=<encodeURIComponent(JSON.stringify([urls]))>` (also `ids=` for Google Drive). The app `fetch()`es each URL **in the browser** and names the file after the last URL segment → our server must send CORS (`Access-Control-Allow-Origin`), and URLs end in `<slug>.gpx`. Chrome 142+ Local Network Access: a public site fetching a local address needs a one-time permission; the LNA spec lists 100.64.0.0/10 (CGNAT, Tailscale) as **local**. No preflight or extra header needed. Headless Chrome auto-denies it (CORS error "Permission was denied"); with the permission granted the file loads.
 - [x] Ride: GPX 1.1 generated from activity_track (time + ele per point, one trkseg per piece), `/rides/{id}/gpx/{slug}.gpx`; route: original files under `/routes/{id}/files/{file}/{slug}.{ext}`; both with `Access-Control-Allow-Origin: https://gpx.studio`
 - [x] Buttons on ride and route pages (symmetry), Download GPX, Import a GPX shortcut on routes; links from BASE_URL

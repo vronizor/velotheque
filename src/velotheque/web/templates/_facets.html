@@ -61,7 +61,10 @@
   {% if show_rides %}
   <fieldset>
     <legend>Type</legend>
-    {% for t in types %}
+    {% set foot_on = state.get('foot') is sameas true %}
+    {% set n = facets.foot.get(True, 0) %}
+    <label class="check foot-switch{% if not n %} zero{% endif %}"><input type="checkbox" name="foot" value="1" form="filters" {% if foot_on %}checked{% endif %}> Runs, walks &amp; hikes <span class="key key-foot"></span> <span class="count">{{ n }}</span></label>
+    {% for t in types if foot_on or t is not foot or state.has('type', t) %}
       {% set n = facets.type.get(t, 0) %}
       <label class="check{% if not n %} zero{% endif %}"><input type="checkbox" name="type" value="{{ t }}" form="filters" {% if state.has('type', t) %}checked{% endif %}> {{ t }} <span class="count">{{ n }}</span></label>
     {% else %}

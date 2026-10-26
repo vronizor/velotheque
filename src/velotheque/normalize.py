@@ -73,10 +73,14 @@ def normalize_bikes(conn: Connection) -> None:
         .order_by(raw_strava_gear.c.source_id, raw_strava_gear.c.id.desc())
     ).scalars()
     for gear in latest_gear:
-        _upsert_bike(conn, gear["id"], _gear_name(gear), gear.get("retired"))
+        if gear["id"].startswith("b"):
+            _upsert_bike(conn, gear["id"], _gear_name(gear), gear.get("retired"))
 
 
 def _bike_id(conn: Connection, gear_id: str | None, name_hint: str | None = None) -> int | None:
+    """Strava gear ids start with "b" for bikes and "g" for shoes; shoes are not bikes."""
+    if gear_id and not gear_id.startswith("b"):
+        return None
     if not gear_id:
         if not name_hint:
             return None

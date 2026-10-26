@@ -1,5 +1,6 @@
 from sqlalchemy import Connection, text
 
+from velotheque.config import CYCLING_SPORT_TYPES
 from velotheque.tables import DERIVED_TABLES
 
 BUFFER_M = 30.0
@@ -61,6 +62,7 @@ WITH {ROUTES_CTE},
 rides AS MATERIALIZED (
   SELECT a.activity_id, {_buffer("a.geometry")} AS buffer
   FROM activity_track_simplified a
+  JOIN activity act ON act.id = a.activity_id AND act.type = ANY(:cycling)
   WHERE a.level = 'detail' AND {{ride_filter}}
     AND EXISTS (SELECT 1 FROM routes r WHERE r.geometry && ST_Expand(a.geometry, 0.001))
 ),
@@ -134,7 +136,12 @@ REGION_TAGS = {
     "routes": ("route_region", "route_id", "route_simplified"),
 }
 
-PARAMS = {"buffer_m": BUFFER_M, "min_piece_m": MIN_PIECE_M, "seam_deg": 2e-6}
+PARAMS = {
+    "buffer_m": BUFFER_M,
+    "min_piece_m": MIN_PIECE_M,
+    "seam_deg": 2e-6,
+    "cycling": list(CYCLING_SPORT_TYPES),
+}
 
 
 def _overlaps(conn: Connection, route_filter: str, ride_filter: str, params: dict) -> None:

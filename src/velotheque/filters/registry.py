@@ -21,6 +21,7 @@ class Field:
     where: Callable[[Table, list[Any]], ColumnElement[bool]]
     multi: bool = False
     facet: Callable[[Table], ColumnElement] | None = None
+    default: tuple[Any, ...] = ()
 
 
 REGISTRY: dict[str, Field] = {}
@@ -83,11 +84,12 @@ class FilterState:
 def build_where(
     state: FilterState, entity: Entity, table: Table, exclude: Iterable[str] = ()
 ) -> list[ColumnElement[bool]]:
-    """AND across fields; each field's where() ORs its own values."""
+    """AND across fields; each field's where() ORs its own values. A field left out of the
+    query applies its default, if it has one."""
     skip = set(exclude)
     clauses = []
-    for param, values in state.values.items():
-        f = REGISTRY[param]
+    for param, f in REGISTRY.items():
+        values = state.values.get(param) or list(f.default)
         if param in skip or entity not in f.entities or not values:
             continue
         clauses.append(f.where(table, values))

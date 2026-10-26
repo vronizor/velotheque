@@ -9,10 +9,14 @@
       <span class="totals-routes"><strong>{{ route_totals.count | whole }}</strong> routes · <strong>{{ route_totals.distance_m | km }}</strong> km · <strong>{{ route_totals.elevation_gain_m | whole }}</strong> m+</span>
     {% endif %}
     {% if show_rides %}
-      <span><strong>{{ totals.count | whole }}</strong> rides</span>
-      <span><strong>{{ totals.distance_m | km }}</strong> km</span>
-      <span><strong>{{ totals.elevation_gain_m | whole }}</strong> m+</span>
-      <span><strong>{{ totals.moving_time_s | hours }}</strong> h</span>
+      {% for group, label in ((totals.bike, "rides"), (totals.foot, "on foot")) if group is not none %}
+        <span class="totals-group">
+          <span><strong>{{ group.count | whole }}</strong> {{ label }}</span>
+          <span><strong>{{ group.distance_m | km }}</strong> km</span>
+          <span><strong>{{ group.elevation_gain_m | whole }}</strong> m+</span>
+          <span><strong>{{ group.moving_time_s | hours }}</strong> h</span>
+        </span>
+      {% endfor %}
     {% endif %}
     {% if show_routes %}<a class="totals-action" href="/routes/import">+ Import GPX</a>{% endif %}
   </div>
@@ -91,7 +95,7 @@
       </tbody>
     </table>
     {% if totals.count > rows|length %}
-      <p class="muted more">Showing the first {{ rows|length }} of {{ totals.count | whole }} rides. Narrow the filters to see the rest.</p>
+      <p class="muted more">Showing the first {{ rows|length }} of {{ totals.count | whole }} {{ "activities" if totals.foot else "rides" }}. Narrow the filters to see the rest.</p>
     {% endif %}
     {% endif %}
   </div>

@@ -25,17 +25,18 @@ def count(db, table, *where):
 def test_first_sync_builds_activities_tracks_and_bikes(db, strava):
     strava.add(summary(1, day=0))
     strava.add(summary(2, day=1, gear_id="b2"))
-    strava.add(summary(3, day=2, sport_type="Run", type="Run"))
+    strava.add(summary(3, day=2, sport_type="Run", type="Run", gear_id="g9"))
     strava.add(summary(4, day=3, sport_type="VirtualRide", map={"summary_polyline": ""}), None)
+    strava.add(summary(5, day=4, sport_type="Swim", type="Swim", gear_id=None))
     strava.descriptions[1] = "Col de la Croix"
 
     job = sync(db, strava)
 
     assert job.status == "succeeded", job.error
-    assert count(db, activity) == 3
-    assert count(db, raw_strava_activity, raw_strava_activity.c.kind == "summary") == 4
-    assert count(db, activity_track, activity_track.c.track_source == "streams") == 2
-    assert count(db, activity_track_simplified) == 4
+    assert count(db, activity) == 4
+    assert count(db, raw_strava_activity, raw_strava_activity.c.kind == "summary") == 5
+    assert count(db, activity_track, activity_track.c.track_source == "streams") == 3
+    assert count(db, activity_track_simplified) == 6
     with db.connect() as conn:
         bikes = dict(conn.execute(select(bike.c.strava_gear_id, bike.c.name)).all())
         ride = conn.execute(select(activity).where(activity.c.source_id == 1)).one()
@@ -43,7 +44,9 @@ def test_first_sync_builds_activities_tracks_and_bikes(db, strava):
     assert ride.description == "Col de la Croix"
     assert ride.timezone == "Europe/Paris"
     assert ride.start_at_local == datetime(2026, 9, 1, 10, 0)
-    assert "/api/v3/activities/3" not in strava.calls
+    assert "/api/v3/activities/3" in strava.calls
+    assert "/api/v3/activities/5" not in strava.calls
+    assert not [c for c in strava.calls if "/gear/" in c and "g9" in c]
 
 
 def test_resync_is_idempotent(db, strava):

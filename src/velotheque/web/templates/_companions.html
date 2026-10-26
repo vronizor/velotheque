@@ -5,7 +5,7 @@
   {% endif %}
   <ul class="chips">
     {% for c in ride_companions %}
-      <li class="chip"><a href="/?with={{ c.id }}" title="{{ 'From a mention in the description' if c.source == 'mention' else 'Added by hand' }}">{{ c.name }}</a><button type="button" class="chip-remove" hx-post="/rides/{{ ride.id }}/companions/{{ c.id }}/remove" hx-target="#companions" hx-swap="outerHTML" aria-label="Remove {{ c.name }}">×</button></li>
+      <li class="chip"><a href="/?with={{ c.id }}&amp;foot=1" title="{{ 'From a mention in the description' if c.source == 'mention' else 'Added by hand' }}">{{ c.name }}</a><button type="button" class="chip-remove" hx-post="/rides/{{ ride.id }}/companions/{{ c.id }}/remove" hx-target="#companions" hx-swap="outerHTML" aria-label="Remove {{ c.name }}">×</button></li>
     {% endfor %}
     <li>
       <form class="chip-add" hx-post="/rides/{{ ride.id }}/companions" hx-target="#companions" hx-swap="outerHTML">

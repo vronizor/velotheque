@@ -54,10 +54,10 @@
         </tbody>
       </table>
       <p>
-        {% if regions.rides_untagged %}<a href="/?region=none">{{ regions.rides_untagged }} rides</a>{% else %}No ride{% endif %}
+        {% if regions.rides_untagged %}<a href="/?region=none&amp;foot=1">{{ regions.rides_untagged }} activities</a>{% else %}No activity{% endif %}
         and {% if regions.routes_untagged %}<a href="/?entity=routes&amp;region=none">{{ regions.routes_untagged }} routes</a>{% else %}no route{% endif %}
         have no region{% if regions.rides_untagged or regions.routes_untagged %}: they're outside the loaded countries, so a country may be missing{% endif %}.
-        {% if regions.rides_no_gps %}<span class="muted">That includes {{ regions.rides_no_gps }} rides without GPS, which never get one.</span>{% endif %}
+        {% if regions.rides_no_gps %}<span class="muted">That includes {{ regions.rides_no_gps }} without GPS, which never get one.</span>{% endif %}
       </p>
     {% else %}
       <p>No regions loaded yet, so the region filter is empty.</p>
@@ -69,7 +69,7 @@
     <h2>People</h2>
     {% if companions %}
       <table class="jobs people">
-        <thead><tr><th>Name</th><th class="num">Rides</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th class="num">Activities</th><th></th></tr></thead>
         <tbody>
           {% for c in companions %}
             <tr>
@@ -79,7 +79,7 @@
                   <button type="submit" class="button secondary">Rename</button>
                 </form>
               </td>
-              <td class="num">{% if c.rides %}<a href="/?with={{ c.id }}">{{ c.rides }}</a>{% else %}0{% endif %}</td>
+              <td class="num">{% if c.rides %}<a href="/?with={{ c.id }}&amp;foot=1">{{ c.rides }}</a>{% else %}0{% endif %}</td>
               <td class="muted small">{{ "mentioned on Strava" if c.on_strava else "added by hand" }}</td>
             </tr>
           {% endfor %}

@@ -51,13 +51,13 @@ def gpx(*segments, name="Test route", kind=None, rte=False) -> bytes:
     ).encode()
 
 
-def add_ride(conn, source_id: int, *segments) -> int:
+def add_ride(conn, source_id: int, *segments, kind: str = "Ride") -> int:
     ride_id = conn.execute(
         activity.insert()
         .values(
             source_id=source_id,
             name=f"Ride {source_id}",
-            type="Ride",
+            type=kind,
             start_at=datetime(2026, 9, 1, tzinfo=UTC),
             start_at_local=datetime(2026, 9, 1),
         )
@@ -182,6 +182,20 @@ def test_overlap_fraction_is_share_of_route_within_30_m(conn):
     far = add_ride(conn, 2, east(10, north_m=60))
     assert overlap(conn, route_id, half) == pytest.approx(0.5, abs=0.01)
     assert overlap(conn, route_id, far) is None
+
+
+def test_foot_activities_are_not_matched_to_routes(conn):
+    route_id = add_route(conn, east(10))
+    hike = add_ride(conn, 1, east(10, north_m=5), kind="Hike")
+    assert overlap(conn, route_id, hike) is None
+    assert coverage(conn, route_id) == 0
+    conn.execute(activity.update().where(activity.c.id == hike).values(type="Ride"))
+    derive_activities(conn, [hike])
+    assert overlap(conn, route_id, hike) == pytest.approx(1, abs=0.01)
+    walk = add_ride(conn, 2, east(10, north_m=-5), kind="Walk")
+    rebuild_derived(conn)
+    assert coverage(conn, route_id) == pytest.approx(1, abs=0.01)
+    assert overlap(conn, route_id, walk) is None
 
 
 def test_road_crossings_do_not_count(conn):

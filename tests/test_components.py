@@ -260,3 +260,15 @@ def test_parse_local():
     assert components.parse_local("2026-07-01T10:00", zone) == datetime(2026, 7, 1, 8, tzinfo=UTC)
     with pytest.raises(ComponentError):
         components.parse_local("yesterday", zone)
+
+
+def test_rides_without_bike_ignore_foot_activities(conn, bikes):
+    from velotheque.components import rides_without_bike
+
+    outdoor = ride(conn, None, day(1))
+    ride(conn, None, day(2), kind="VirtualRide")
+    ride(conn, None, day(3), kind="Run")
+    ride(conn, None, day(4), kind="Hike")
+    found = rides_without_bike(conn)
+    assert (found["count"], found["indoor"]) == (2, 1)
+    assert [r.id for r in found["latest"]] == [outdoor]

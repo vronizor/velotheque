@@ -14,6 +14,11 @@ CYCLING_SPORT_TYPES = (
     "Velomobile",
     "Handcycle",
 )
+FOOT_SPORT_TYPES = ("Run", "TrailRun", "Walk", "Hike")
+
+
+def is_foot(sport: str | None) -> bool:
+    return sport in FOOT_SPORT_TYPES
 
 
 class Settings(BaseSettings):
@@ -33,7 +38,7 @@ class Settings(BaseSettings):
     strava_api_base: str = "https://www.strava.com/api/v3"
     strava_oauth_base: str = "https://www.strava.com/oauth"
     strava_scopes: str = "read,activity:read_all,profile:read_all"
-    sport_types: tuple[str, ...] = CYCLING_SPORT_TYPES
+    sport_types: tuple[str, ...] = CYCLING_SPORT_TYPES + FOOT_SPORT_TYPES
     sync_overlap_days: int = 14
     rate_limit_margin: int = 3
 

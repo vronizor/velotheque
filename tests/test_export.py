@@ -134,9 +134,11 @@ def test_export_row_mapping():
 def test_import_builds_rides_from_export_alone(db, settings, tmp_path):
     report = import_export(db, settings, make_export(tmp_path / "export_1.zip"))
 
-    assert (report.rows, report.cycling, report.normalized) == (4, 3, 3)
+    assert (report.rows, report.kept, report.normalized) == (4, 4, 4)
     found = rides(db)
-    assert set(found) == {1, 2, 4}
+    assert set(found) == {1, 2, 3, 4}
+    assert found[3].type == "Run" and found[3].bike_name is None
+    assert found[3].track_source == "export"
     assert found[1].track_source == "export" and found[2].track_source == "export"
     assert found[4].track_source is None and found[4].trainer
     assert found[1].bike_name == "Le Capitaine" and found[1].has_photos
@@ -154,7 +156,7 @@ def test_reimport_is_idempotent(db, settings, tmp_path):
     assert report.new_or_changed == 0
     with db.connect() as conn:
         assert conn.execute(select(func.count()).select_from(raw_export_activity)).scalar() == 4
-        assert conn.execute(select(func.count()).select_from(activity)).scalar() == 3
+        assert conn.execute(select(func.count()).select_from(activity)).scalar() == 4
 
 
 def test_api_wins_for_metadata_and_export_saves_api_calls(db, settings, tmp_path, strava):

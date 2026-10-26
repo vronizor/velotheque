@@ -218,3 +218,41 @@ def test_facet_counts_exclude_their_own_field(rides):
     assert types == {"Ride": 1, "GravelRide": 1, "VirtualRide": 1, "MountainBikeRide": 1}
     by_bike = facet_counts(conn, state, Entity.RIDES, activity, "bike")
     assert by_bike == {bikes["road"]: 1}
+
+
+def _add(conn, sid, kind, km):
+    conn.execute(
+        insert(activity).values(
+            source_id=sid,
+            name=f"{kind} {sid}",
+            type=kind,
+            start_at=datetime(2026, 6, 1, tzinfo=UTC),
+            start_at_local=datetime(2026, 6, 1),
+            distance_m=km * 1000,
+            moving_time_s=3600,
+        )
+    )
+
+
+def test_foot_activities_are_hidden_unless_asked(rides):
+    from velotheque.filters import facet_counts
+
+    conn, _ = rides
+    _add(conn, 6, "Run", 10)
+    _add(conn, 7, "Hike", 15)
+    assert matching(conn, []) == {1, 2, 3, 4, 5}
+    assert matching(conn, [("bike", "none")]) == {3, 4}
+    assert matching(conn, [("foot", "1")]) == {1, 2, 3, 4, 5, 6, 7}
+    assert matching(conn, [("foot", "1"), ("type", "Hike")]) == {7}
+    assert matching(conn, [("foot", "0")]) == {1, 2, 3, 4, 5}
+    assert matching(conn, [("type", "Run")]) == set()
+
+    state = FilterState.from_items([("dist_min", "12")])
+    assert facet_counts(conn, state, Entity.RIDES, activity, "foot") == {False: 5, True: 1}
+    assert "Hike" not in facet_counts(conn, state, Entity.RIDES, activity, "type")
+    assert matching(conn, [("foot", "1")], exclude=["foot"]) == {1, 2, 3, 4, 5, 6, 7}
+
+
+def test_foot_default_is_not_in_the_query_string():
+    state = FilterState.from_items([("type", "Ride")])
+    assert state.to_query() == "type=Ride" and not state.values.get("foot")

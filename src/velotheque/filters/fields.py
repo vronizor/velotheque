@@ -1,8 +1,9 @@
 import re
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import case, exists, func, literal_column, or_, select
+from sqlalchemy import case, exists, func, literal_column, or_, select, true
 
+from velotheque.config import FOOT_SPORT_TYPES
 from velotheque.filters.registry import Entity, Field, register
 from velotheque.geo import decode_polyline, polygon_wkt
 from velotheque.tables import (
@@ -128,6 +129,19 @@ def _flag(value: str) -> bool:
     if value.lower() in ("0", "false", "no", "off"):
         return False
     raise ValueError(value)
+
+
+register(
+    Field(
+        "foot",
+        "On foot",
+        RIDES,
+        _flag,
+        lambda t, v: true() if v[0] else t.c.type.not_in(FOOT_SPORT_TYPES),
+        facet=lambda t: t.c.type.in_(FOOT_SPORT_TYPES),
+        default=(False,),
+    )
+)
 
 
 def _bbox(value: str) -> tuple[float, float, float, float]:

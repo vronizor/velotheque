@@ -379,3 +379,33 @@ def test_open_in_gpx_studio(client, db):
     original = client.get(file_url.removeprefix("http://localhost:8000"))
     assert original.content == ROUTE_GPX
     assert original.headers["access-control-allow-origin"] == "https://gpx.studio"
+
+
+def test_foot_activities_are_off_by_default(client, db, strava):
+    strava.add(summary(3, day=5, name="Sunday hike", sport_type="Hike", type="Hike",
+                       gear_id="g7", distance=12000.0, moving_time=7200))  # fmt: skip
+    sync(db, strava)
+
+    page = client.get("/")
+    assert "Sunday hike" not in page.text
+    assert 'name="foot" value="1" form="filters" >' in page.text
+    assert 'name="type" value="Hike"' not in page.text
+
+    page = client.get("/?foot=1")
+    assert "Sunday hike" in page.text and "on foot" in page.text
+    assert 'name="foot" value="1" form="filters" checked' in page.text
+
+    default = client.get("/explore/rides.geojson").json()
+    assert all(f["properties"]["foot"] is False for f in default["features"])
+    with_foot = client.get("/explore/rides.geojson?foot=1").json()
+    hike = [f for f in with_foot["features"] if f["properties"]["name"] == "Sunday hike"]
+    assert hike and hike[0]["properties"]["foot"] is True
+
+    with db.connect() as conn:
+        hike = conn.execute(select(activity).where(activity.c.source_id == 3)).one()
+    hike_id = hike.id
+    assert hike.bike_id is None
+    page = client.get(f"/rides/{hike_id}")
+    assert "10:00 /km" in page.text and "Avg speed" not in page.text
+    assert 'data-foot="1"' in page.text and "<dt>Bike</dt>" not in page.text
+    assert "Sunday hike" not in client.get("/components").text

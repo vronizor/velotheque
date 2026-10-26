@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 import polars as pl
 from sqlalchemy import Engine
 
-from velotheque.config import Settings
+from velotheque.config import CYCLING_SPORT_TYPES, Settings
 from velotheque.derive import derive_activities
 from velotheque.exportrow import gear_id, media_paths, sport_type
 from velotheque.normalize import normalize_activity
@@ -45,7 +45,7 @@ class ImportReport:
     rows: int = 0
     new_or_changed: int = 0
     files: int = 0
-    cycling: int = 0
+    kept: int = 0
     normalized: int = 0
     photos: int = 0
     missing_files: list[int] = field(default_factory=list)
@@ -61,7 +61,7 @@ def import_export(
     report = ImportReport()
     export_name = zip_path.stem
     root = settings.data_dir / EXPORT_DIR / export_name
-    cycling: list[int] = []
+    kept: list[int] = []
     with zipfile.ZipFile(zip_path) as archive:
         members = set(archive.namelist())
         frame = read_activities_csv(archive.read("activities.csv"))
@@ -85,19 +85,20 @@ def import_export(
                     {"export_name": export_name, "file_path": file_path},
                 ):
                     report.new_or_changed += 1
-            if sport_type(row.get("Activity Type")) in settings.sport_types:
-                cycling.append(source_id)
+            sport = sport_type(row.get("Activity Type"))
+            if sport in settings.sport_types:
+                kept.append(source_id)
                 for media in media_paths(row.get("Media")):
                     if media in members:
                         target = photo_dir(settings, source_id) / media_filename(media)
                         _extract(archive, media, target)
-                if row.get("Activity Gear") and not gear_id(row):
+                if sport in CYCLING_SPORT_TYPES and row.get("Activity Gear") and not gear_id(row):
                     report.unmatched_gear.append(
                         (source_id, row.get("Activity Name") or "", row["Activity Gear"])
                     )
-    report.cycling = len(cycling)
+    report.kept = len(kept)
     progress(f"stored {report.rows} rows ({report.new_or_changed} new or changed)")
-    for i, source_id in enumerate(cycling, 1):
+    for i, source_id in enumerate(kept, 1):
         with engine.begin() as conn:
             activity_id = normalize_activity(conn, source_id, settings)
             if activity_id is not None:
@@ -105,5 +106,5 @@ def import_export(
                 report.photos += materialize_photos(conn, activity_id, source_id, settings)
                 report.normalized += 1
         if i % 50 == 0:
-            progress(f"normalized {i}/{len(cycling)} rides")
+            progress(f"normalized {i}/{len(kept)} activities")
     return report

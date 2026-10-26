@@ -133,6 +133,8 @@ code { font-size: 0.9em; background: var(--cream); padding: 0 4px; border-radius
 .entity-toggle a + a { border-left: 1px solid var(--line); }
 .entity-toggle a.active { background: var(--ink); color: var(--cream); }
 .totals-action { margin-left: auto; font-size: 0.9rem; }
+.totals-group { display: flex; gap: 24px; }
+.totals-group + .totals-group { padding-left: 24px; border-left: 1px solid var(--line); }
 table.routes + table.rides { margin-top: 18px; }
 td.col-tags .tag { margin-right: 2px; }
 
@@ -142,7 +144,8 @@ td.col-tags .tag { margin-right: 2px; }
 .results { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--line); }
 .totals {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 4px 24px;
   padding: 8px 16px;
   background: var(--cream);
   font-size: 0.95rem;
@@ -229,6 +232,8 @@ a.tag { text-decoration: none; }
 .key-route { border-color: #1f5fad; border-top-style: dashed; }
 .key-covered { border-color: #0b3c7a; border-top-width: 5px; }
 .key-ride { border-color: rgb(214 58 42 / 0.5); }
+.key-foot { border-color: rgb(47 143 78 / 0.7); margin-left: 2px; }
+.filters .foot-switch { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px dashed var(--line); }
 .danger-zone { margin-top: 24px; }
 
 /* Components */
@@ -306,7 +311,8 @@ details.edit > summary { cursor: pointer; color: var(--muted); }
   .map-pane { height: 50vh; }
   .results .table-wrap { max-height: none; }
   .topbar { gap: 12px; overflow-x: auto; }
-  .totals { flex-wrap: wrap; gap: 12px; }
+  .totals, .totals-group { flex-wrap: wrap; gap: 4px 12px; }
+  .totals-group + .totals-group { padding-left: 0; border-left: 0; }
   .route-columns { grid-template-columns: 1fr; }
 }
 

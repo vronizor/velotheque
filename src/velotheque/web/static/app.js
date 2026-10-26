@@ -1,6 +1,6 @@
 "use strict";
 
-const COLORS = { ride: "#D63A2A", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412", selection: "#F2B705", region: "#6B4FA0" };
+const COLORS = { ride: "#D63A2A", foot: "#2F8F4E", route: "#1F5FAD", covered: "#0B3C7A", highlight: "#161412", selection: "#F2B705", region: "#6B4FA0" };
 const SOURCES = ["routes", "rides"];
 const ACTIVE = [
   "any",
@@ -243,7 +243,7 @@ function initExplore() {
       source: "rides",
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": ["case", ACTIVE, COLORS.highlight, COLORS.ride],
+        "line-color": ["case", ACTIVE, COLORS.highlight, ["boolean", ["get", "foot"], false], COLORS.foot, COLORS.ride],
         "line-opacity": ["case", ACTIVE, 1, 0.35],
         "line-width": ["case", ACTIVE, 4, 2],
       },
@@ -414,7 +414,7 @@ function initRide() {
       type: "line",
       source: "track",
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": COLORS.ride, "line-width": 4 },
+      paint: { "line-color": el.dataset.foot ? COLORS.foot : COLORS.ride, "line-width": 4 },
     });
     addRiddenLayer(map);
     addProfileLayers(map, "selection");

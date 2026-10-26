@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import JSON, Connection, Text, and_, cast, func, literal_column, select, text
 
+from velotheque.config import CYCLING_SPORT_TYPES, FOOT_SPORT_TYPES
 from velotheque.exportrow import gear_id, sport_type
 from velotheque.filters import Entity, FilterState, build_where, facet_counts
 from velotheque.filters.fields import NO_REGION
@@ -101,6 +102,23 @@ def ride_rows(conn: Connection, state: FilterState, sort: Sort, limit: int = LIS
     return conn.execute(query).all()
 
 
+@dataclass(frozen=True)
+class GroupTotals:
+    count: int = 0
+    distance_m: float = 0
+    elevation_gain_m: float = 0
+    moving_time_s: int = 0
+
+
+@dataclass(frozen=True)
+class Totals:
+    """Bike and on-foot sums are kept apart: adding run km to ride km means nothing."""
+
+    count: int
+    bike: GroupTotals
+    foot: GroupTotals | None
+
+
 def _extent(geometry):
     extent = func.ST_Extent(geometry)
     return select(
@@ -126,25 +144,41 @@ def ride_totals(conn: Connection, state: FilterState):
         )
         .where(*_where(state))
     )
-    totals = conn.execute(
+    foot = activity.c.type.in_(FOOT_SPORT_TYPES).label("foot")
+    rows = conn.execute(
         select(
+            foot,
             func.count().label("count"),
-            func.coalesce(func.sum(activity.c.distance_m), 0).label("distance_m"),
-            func.coalesce(func.sum(activity.c.elevation_gain_m), 0).label("elevation_gain_m"),
-            func.coalesce(func.sum(activity.c.moving_time_s), 0).label("moving_time_s"),
-        ).where(*_where(state))
-    ).one()
+            func.sum(activity.c.distance_m).label("distance_m"),
+            func.sum(activity.c.elevation_gain_m).label("elevation_gain_m"),
+            func.sum(activity.c.moving_time_s).label("moving_time_s"),
+        )
+        .where(*_where(state))
+        .group_by(foot)
+    ).all()
+    groups = {
+        r.foot: GroupTotals(r.count, r.distance_m, r.elevation_gain_m, r.moving_time_s)
+        for r in rows
+    }
+    totals = Totals(
+        count=sum(r.count for r in rows),
+        bike=groups.get(False, GroupTotals()),
+        foot=groups.get(True),
+    )
     return totals, _bbox(conn.execute(bbox_query).one())
 
 
-def _feature_collection(conn: Connection, query_from, feature_id, name, geometry, where) -> str:
+def _feature_collection(
+    conn: Connection, query_from, feature_id, name, geometry, where, **properties
+) -> str:
+    extra = [v for key, column in properties.items() for v in (key, column)]
     feature = func.json_build_object(
         "type",
         "Feature",
         "id",
         feature_id,
         "properties",
-        func.json_build_object("name", name),
+        func.json_build_object("name", name, *extra),
         "geometry",
         cast(func.ST_AsGeoJSON(geometry, 5), JSON),
     )
@@ -165,13 +199,14 @@ def rides_geojson(conn: Connection, state: FilterState, level: str = "overview")
         activity.c.name,
         s.c.geometry,
         _where(state),
+        foot=activity.c.type.in_(FOOT_SPORT_TYPES),
     )
 
 
 def ride_types(conn: Connection) -> list[str]:
-    return (
-        conn.execute(select(activity.c.type).distinct().order_by(activity.c.type)).scalars().all()
-    )
+    """Cycling types first, then the on-foot ones."""
+    types = conn.execute(select(activity.c.type).distinct()).scalars().all()
+    return sorted(types, key=lambda t: (t in FOOT_SPORT_TYPES, t))
 
 
 def bikes(conn: Connection):
@@ -222,7 +257,7 @@ def ride_track_points(conn: Connection, activity_id: int):
     return json.loads(found[0])["coordinates"], found.time_s, found.altitude_m
 
 
-FACETS = ("type", "bike", "group", "with", "photos", "region")
+FACETS = ("foot", "type", "bike", "group", "with", "photos", "region")
 
 
 def ride_facets(conn: Connection, state: FilterState) -> dict[str, dict]:
@@ -286,7 +321,8 @@ def export_status(conn: Connection, sport_types) -> dict:
     unmatched = []
     for row in rows:
         payload = row.payload
-        if sport_type(payload.get("Activity Type")) not in sport_types:
+        sport = sport_type(payload.get("Activity Type"))
+        if sport not in sport_types or sport not in CYCLING_SPORT_TYPES:
             continue
         if payload.get("Activity Gear") and not gear_id(payload):
             unmatched.append(row)

@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import Connection
 
+from velotheque.config import is_foot
 from velotheque.db import get_engine
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -45,6 +46,13 @@ def percent(fraction) -> str:
     return f"{value:.0f}%" if value >= 1 or value == 0 else "<1%"
 
 
+def pace(meters, seconds) -> str:
+    if not meters or not seconds:
+        return "–"
+    per_km = round(seconds / (meters / 1000))
+    return f"{per_km // 60}:{per_km % 60:02d}"
+
+
 def when(value: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
     return value.strftime(fmt) if value else ""
 
@@ -73,4 +81,6 @@ templates.env.filters.update(
     when=when,
     local=local,
     ago=ago,
+    pace=pace,
 )
+templates.env.tests["foot"] = is_foot

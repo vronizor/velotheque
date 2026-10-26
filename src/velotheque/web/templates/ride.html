@@ -29,13 +29,17 @@
     <div><dt>Elevation</dt><dd>{{ ride.elevation_gain_m | whole }} m</dd></div>
     <div><dt>Moving time</dt><dd>{{ ride.moving_time_s | duration }}</dd></div>
     <div><dt>Elapsed</dt><dd>{{ ride.elapsed_time_s | duration }}</dd></div>
+    {% if ride.type is foot %}
+    <div><dt>Avg pace</dt><dd>{{ ride.distance_m | pace(ride.moving_time_s) }} /km</dd></div>
+    {% else %}
     <div><dt>Avg speed</dt><dd>{{ "%.1f" | format(ride.distance_m / ride.moving_time_s * 3.6 if ride.moving_time_s else 0) }} km/h</dd></div>
     <div><dt>Bike</dt><dd>{{ ride.bike_name or "—" }}</dd></div>
-    <div><dt>Riders</dt><dd>{% if ride.athlete_count %}{{ ride.athlete_count }}{% if ride.athlete_count == 1 %} <span class="muted small">solo</span>{% endif %}{% else %}—{% endif %}</dd></div>
+    {% endif %}
+    <div><dt>{{ "People" if ride.type is foot else "Riders" }}</dt><dd>{% if ride.athlete_count %}{{ ride.athlete_count }}{% if ride.athlete_count == 1 %} <span class="muted small">solo</span>{% endif %}{% else %}—{% endif %}</dd></div>
   </dl>
 
   {% if track %}
-    <div id="ride-map" class="ride-map" data-style="{{ map_style_url }}" data-track='{{ track }}'></div>
+    <div id="ride-map" class="ride-map" data-style="{{ map_style_url }}" data-track='{{ track }}'{% if ride.type is foot %} data-foot="1"{% endif %}></div>
     <div class="resize-handle" data-resize="ride-map" role="separator" tabindex="0" aria-orientation="horizontal" title="Drag to resize the map, double-click to reset"></div>
     {% if routes %}
       <p class="muted small legend"><label class="check"><input type="checkbox" data-layer="routes" data-url="/rides/{{ ride.id }}/routes.geojson"> <span class="key key-route"></span> show the route{{ "" if routes|length == 1 else "s" }} it rides ({{ routes|length }})</label></p>
@@ -62,7 +66,7 @@
     </section>
   {% endif %}
 
-  {% with explore = "/?" %}{% include "_regions_crossed.html" %}{% endwith %}
+  {% with explore = "/?foot=1&" if ride.type is foot else "/?" %}{% include "_regions_crossed.html" %}{% endwith %}
 
   {% if routes %}
     <details class="ride-routes collapsible" data-remember="ride-routes">
