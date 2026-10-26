@@ -44,6 +44,8 @@ Already in raw: every Strava summary and export row (with track files) is stored
 - [x] "Rides with no bike" and export unmatched-gear lists: cycling only; links into Explore from people/regions/foot pages carry `foot=1`
 - [x] Tests (144), headless check on seeded data (desktop + 390 px, no horizontal scroll)
 - [ ] Deploy (owner): `git pull`, rebuild, then `docker compose exec app velotheque normalize`, then Sync now
+- [x] "No bike" counts and matches rides only, also with the switch on (owner, 2026-10-26)
+- [x] Re-importing a newer export (owner question, 2026-10-26): checked, activity ids are kept (upsert on source + Strava id), so curated links survive; mentions use ON CONFLICT DO NOTHING (a removed one stays hidden), manual people untouched, photos upserted by UUID; API metadata still wins. Test `test_new_export_keeps_curated_data`. Fix: track files are now copied only for new or changed rows (a second export used to duplicate every file into its own folder)
 
 
 VERIFY (2026-10-16, gpx.studio source on GitHub): its "Open in" link is `https://gpx.studio/app?files=<encodeURIComponent(JSON.stringify([urls]))>` (also `ids=` for Google Drive). The app `fetch()`es each URL **in the browser** and names the file after the last URL segment → our server must send CORS (`Access-Control-Allow-Origin`), and URLs end in `<slug>.gpx`. Chrome 142+ Local Network Access: a public site fetching a local address needs a one-time permission; the LNA spec lists 100.64.0.0/10 (CGNAT, Tailscale) as **local**. No preflight or extra header needed. Headless Chrome auto-denies it (CORS error "Permission was denied"); with the permission granted the file loads.

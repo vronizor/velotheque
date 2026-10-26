@@ -71,7 +71,7 @@ def cmd_import_export(args) -> None:
     report = import_export(get_engine(), get_settings(), Path(args.zip), progress=print)
     print(
         f"{report.rows} activities in the export, {report.kept} rides and foot activities "
-        f"normalized ({report.normalized} ok), {report.files} track files, "
+        f"normalized ({report.normalized} ok), {report.files} track files copied, "
         f"{report.photos} photos/videos"
     )
     if report.missing_files:

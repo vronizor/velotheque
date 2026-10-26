@@ -244,6 +244,9 @@ def test_foot_activities_are_hidden_unless_asked(rides):
     assert matching(conn, [("bike", "none")]) == {3, 4}
     assert matching(conn, [("foot", "1")]) == {1, 2, 3, 4, 5, 6, 7}
     assert matching(conn, [("foot", "1"), ("type", "Hike")]) == {7}
+    assert matching(conn, [("foot", "1"), ("bike", "none")]) == {3, 4}
+    on_foot = FilterState.from_items([("foot", "1")])
+    assert facet_counts(conn, on_foot, Entity.RIDES, activity, "bike").get(None) == 2
     assert matching(conn, [("foot", "0")]) == {1, 2, 3, 4, 5}
     assert matching(conn, [("type", "Run")]) == set()
 

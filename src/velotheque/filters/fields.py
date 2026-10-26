@@ -44,8 +44,13 @@ def _bike_where(t, values):
     ids = [v for v in values if v != NO_BIKE]
     clauses = [t.c.bike_id.in_(ids)] if ids else []
     if NO_BIKE in values:
-        clauses.append(t.c.bike_id.is_(None))
+        clauses.append(t.c.bike_id.is_(None) & t.c.type.not_in(FOOT_SPORT_TYPES))
     return or_(*clauses)
+
+
+def _bike_facet(t):
+    """On-foot activities never have a bike; they're counted apart, not under "No bike"."""
+    return case((t.c.type.in_(FOOT_SPORT_TYPES), literal_column("-1")), else_=t.c.bike_id)
 
 
 def _range(param: str, label: str, column: str, scale: float, entities, op: str) -> Field:
@@ -85,7 +90,7 @@ register(
         facet=lambda t: t.c.type,
     )
 )
-register(Field("bike", "Bike", RIDES, _bike, _bike_where, multi=True, facet=lambda t: t.c.bike_id))
+register(Field("bike", "Bike", RIDES, _bike, _bike_where, multi=True, facet=_bike_facet))
 
 _range("dist_min", "Min distance (km)", "distance_m", 1000, RIDES_AND_ROUTES, "min")
 _range("dist_max", "Max distance (km)", "distance_m", 1000, RIDES_AND_ROUTES, "max")

@@ -119,10 +119,10 @@ docker compose exec app velotheque import-export /data/imports/export_XXXX.zip
 ```
 
 What the import does:
-- Stores each `activities.csv` row raw (append-only, keyed by activity ID) and copies the track files to `$VELOTHEQUE_DATA_DIR/strava-export/<export>/`.
-- Normalizes the cycling rows and builds their tracks from the `.fit` / `.gpx` / `.tcx` files, gzipped or not.
+- Stores each `activities.csv` row raw (append-only, keyed by activity ID) and copies the track files of new or changed rows to `$VELOTHEQUE_DATA_DIR/strava-export/<export>/`.
+- Normalizes the cycling and on-foot rows and builds their tracks from the `.fit` / `.gpx` / `.tcx` files, gzipped or not.
 - Maps bikes exactly, through the CSV's `Bike` column (the Strava gear ID). Cycling rides whose gear can't be mapped are listed at the end of the run.
-- Can be re-run safely: unchanged rows are skipped.
+- Can be re-run safely, and a newer export can be imported over an older one: unchanged rows are skipped (their files aren't copied again), each activity keeps its ID, so everything hand-entered stays (people added or removed, components, routes), and photos are matched by their UUID, so none are duplicated. Keep the earlier `strava-export/<export>/` folders: unchanged activities still read their track file from there.
 
 How it combines with the API:
 - **Metadata:** when both sources exist, the API wins (name, type, time zone, bike). Export-only rides show UTC times until a sync supplies their real time zone.

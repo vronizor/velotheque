@@ -10,7 +10,14 @@ from sqlalchemy import func, select
 from tests.fake_strava import SETTINGS, jpeg_bytes, summary, sync
 from velotheque.export import import_export
 from velotheque.exportrow import as_api_payload
-from velotheque.tables import activity, activity_photo, activity_track, bike, raw_export_activity
+from velotheque.tables import (
+    activity,
+    activity_photo,
+    activity_track,
+    bike,
+    companion,
+    raw_export_activity,
+)
 from velotheque.trackfiles import parse_gpx, parse_tcx
 
 HEADER = [
@@ -277,3 +284,46 @@ def test_api_primary_photo_downloaded_once_and_deduplicated(db, settings, tmp_pa
     for p in photos(db):
         by_ride.setdefault(p.unique_id, p.source)
     assert by_ride["a"] == "export" and by_ride["z"] == "strava"
+
+
+def test_new_export_keeps_curated_data(db, settings, tmp_path):
+    from velotheque import companions
+    from velotheque.tables import activity_companion
+
+    mention = "[strava://athletes/77/4]Anna and [strava://athletes/88/3]Bob"
+    import_export(db, settings, make_export(tmp_path / "export_1.zip", description=mention))
+    with db.begin() as conn:
+        ids = dict(conn.execute(select(activity.c.source_id, activity.c.id)).all())
+        ride = ids[1]
+        names = dict(conn.execute(select(companion.c.name, companion.c.id)).all())
+        companions.remove(conn, ride, names["Anna"])
+        companions.add(conn, ride, "Carla")
+        before_photos = photos(db)
+
+    renamed = [(1, *ROWS[0][1:2], "Forclaz, renamed", *ROWS[0][3:]), *ROWS[1:]]
+    report = import_export(
+        db, settings, make_export(tmp_path / "export_2.zip", rows=renamed, description=mention)
+    )
+
+    assert report.new_or_changed == 1 and report.files == 1
+    second = settings.data_dir / "strava-export/export_2/activities"
+    assert sorted(f.name for f in second.iterdir()) == ["101.gpx"]
+    with db.connect() as conn:
+        assert dict(conn.execute(select(activity.c.source_id, activity.c.id)).all()) == ids
+        links = {
+            r.name: (r.source, r.hidden)
+            for r in conn.execute(
+                select(companion.c.name, activity_companion.c.source, activity_companion.c.hidden)
+                .join(activity_companion)
+                .where(activity_companion.c.activity_id == ride)
+            )
+        }
+    assert links == {
+        "Anna": ("mention", True),
+        "Bob": ("mention", False),
+        "Carla": ("manual", False),
+    }
+    assert rides(db)[1].name == "Forclaz, renamed"
+    assert [(p.activity_id, p.unique_id) for p in photos(db)] == [
+        (p.activity_id, p.unique_id) for p in before_photos
+    ]

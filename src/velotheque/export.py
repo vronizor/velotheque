@@ -71,9 +71,8 @@ def import_export(
             member = row.get("Filename")
             file_path = None
             if member and member in members:
-                _extract(archive, member, _safe_join(root, member))
+                target = _safe_join(root, member)
                 file_path = f"{EXPORT_DIR}/{export_name}/{member}"
-                report.files += 1
             elif member:
                 report.missing_files.append(source_id)
             with engine.begin() as conn:
@@ -85,6 +84,10 @@ def import_export(
                     {"export_name": export_name, "file_path": file_path},
                 ):
                     report.new_or_changed += 1
+                    # An unchanged row keeps pointing at the earlier export's copy of its file.
+                    if file_path:
+                        _extract(archive, member, target)
+                        report.files += 1
             sport = sport_type(row.get("Activity Type"))
             if sport in settings.sport_types:
                 kept.append(source_id)
