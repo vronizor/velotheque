@@ -24,6 +24,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - No Caddy on the Pi (the spec assumed one): HTTPS + names via Tailscale Services (`tailscale serve --service=svc:<name> --https=443 127.0.0.1:<port>`; Pi tagged tag:server; Funnel left off). BASE_URL and the Strava callback domain use the service name.
 - /etc/velotheque/backup.env on the Pi: VELOTHEQUE_DATA_DIR=/srv/velotheque until the SSD move
 - Port 8000 (and 8001, 8080, 80, 53, 3000) are used by other services on the Pi: APP_PORT=8010 there.
+- 2026-10-29: Postgres was published on the Tailscale IP; after a reboot Docker started before Tailscale had that address, the bind failed and db stayed Exited for two days. Now 127.0.0.1 only, reached over the tailnet with `tailscale serve --tcp 5432` (README, Read-only SQL access).
 
 ## Pi deployment checklist (2026-10-16)
 - [x] Stack up on the Pi (APP_PORT 8010, data on SD at /srv/velotheque), migrations 0001–0004, PostGIS 3.6.4

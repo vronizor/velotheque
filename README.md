@@ -74,7 +74,6 @@ mypi.my-tailnet.ts.net {
 | `VELOTHEQUE_RO_PASSWORD` | Password for the read-only role `velotheque_ro`, created on first DB init |
 | `DATABASE_URL` | Only for running the CLI or tests on the host (`localhost:5432`). The app container gets its own. |
 | `VELOTHEQUE_DATA_DIR` | Host directory on the USB SSD. Postgres data goes in `$VELOTHEQUE_DATA_DIR/postgres`. |
-| `TAILSCALE_IP` | Interface the Postgres port is published on, so you can reach it from your SQL client over Tailscale. Defaults to `127.0.0.1`. |
 | `APP_PORT` | Host port the app listens on, on 127.0.0.1 only. Defaults to 8000; change it if something else uses 8000. |
 | `BASE_URL` | Public URL of the app, e.g. `https://mypi.my-tailnet.ts.net` |
 | `OAUTH_BASE_URL` | Optional override for the OAuth redirect only (see the fallback below) |
@@ -357,7 +356,12 @@ docker compose exec app velotheque backup-status --ok|--error MSG   # used by th
 
 - The role `velotheque_ro` is created on first DB init.
 - It gets `SELECT` on every table except `strava_auth`, including tables added by later migrations.
-- Connect from your client to `TAILSCALE_IP:5432` as `velotheque_ro`.
+- Postgres is published on `127.0.0.1:5432` only. To reach it from your SQL client over Tailscale, forward the port once on the Pi; the setting survives reboots:
+  ```sh
+  sudo tailscale serve --bg --tcp 5432 tcp://127.0.0.1:5432
+  ```
+- Connect from your client to `mypi.my-tailnet.ts.net:5432` as `velotheque_ro`.
+- Don't publish the port on the Pi's Tailscale IP in `compose.yaml` instead. At boot Docker can start before Tailscale has assigned that address; the bind then fails, the `db` container stays Exited (restart policies don't retry a failed start) and the app restart-loops.
 
 ## Development (Mac)
 
