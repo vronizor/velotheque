@@ -3,6 +3,10 @@
 Plan: Milestone 4 (Components); started before the SSD move (owner, 2026-10-16). Spec: `velotheque-spec.md`.
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
+## Next (proposed 2026-11-11)
+- [ ] Plan 1: port Postgres/PostGIS → DuckDB: `docs/plans/01-duckdb-port.md`. First step: run the spatial-extension check on the Pi.
+- [!] Plan 2: desktop app for friends: `docs/plans/02-desktop-app.md`. Blocked by Plan 1.
+
 ## Blockers / waiting on the owner
 - [x] Docker Desktop installed on the Mac
 - [x] Git remote URL (GitHub, public)
