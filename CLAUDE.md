@@ -24,4 +24,4 @@ uv run ruff check && uv run ruff format --check
 The GitHub repo is **public**. Never commit hostnames, tailnet names, IPs, usernames, Strava IDs or other personal data (use placeholders like `mypi.my-tailnet.ts.net`). Scan staged files before every commit.
 
 ## Deployment
-The owner deploys by `git pull` on the Pi; migrations run when the app container starts. After changes under `ops/`, the owner re-runs `sudo ops/install-backup.sh`. Give the owner exact commands plus what to expect, and ask for the output.
+The Pi deploys release tags on its own: a push to `main` deploys nothing; a new `vX.Y` tag on main is built, checked and rolled back if it fails, within 5 minutes. Tag only when the owner asks for a release. Don't tell the owner to `git pull` on the Pi; by hand it is `deploy velo [REF]`. Migrations run when the app container starts; a release that adds one under `src/velotheque/migrations/versions/` is held, not deployed automatically: the owner runs `deploy velo` when he can watch it. After a release that changes `ops/`, the owner re-runs `sudo ops/install-backup.sh`. Give the owner exact commands plus what to expect, and ask for the output.

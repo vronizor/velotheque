@@ -44,6 +44,8 @@ cp .env.example .env    # then edit it, see below
 docker compose up -d --build
 ```
 
+Update: push a release tag (`git tag v1.2 && git push origin v1.2`, or a release on GitHub). The Pi deploys it within 5 minutes and rolls back if it doesn't come up; pushing to `main` alone deploys nothing. By hand on the Pi: `deploy velo`. Don't `git pull` in the Pi's checkout. A release with a new migration is held until you run `deploy velo` yourself.
+
 The app listens on `127.0.0.1:$APP_PORT` (default 8000) and only on the Pi itself. To reach it over HTTPS from your devices, use either option below.
 
 **Option A: Tailscale serve** (no extra software). This gives a valid certificate for the Pi's MagicDNS name, and only your tailnet can reach it:
@@ -292,7 +294,7 @@ sudo systemctl start velotheque-backup
 journalctl -u velotheque-backup -n 50 --no-pager
 ```
 
-Re-run `sudo ops/install-backup.sh` after every `git pull` that changes `ops/`.
+Re-run `sudo ops/install-backup.sh` after every release that changes `ops/`.
 
 **When the Proton session expires**, the next run fails: the header dot turns amber, then red after 48 h, and Settings shows the error. Log in again with step 4, then `sudo systemctl start velotheque-backup`.
 

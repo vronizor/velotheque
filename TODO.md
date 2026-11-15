@@ -48,7 +48,7 @@ Already in raw: every Strava summary and export row (with track files) is stored
 - [x] Totals split into rides / on foot; map draws foot tracks in green; ride page: pace instead of speed, no Bike, "People"
 - [x] "Rides with no bike" and export unmatched-gear lists: cycling only; links into Explore from people/regions/foot pages carry `foot=1`
 - [x] Tests (144), headless check on seeded data (desktop + 390 px, no horizontal scroll)
-- [ ] Deploy (owner): `git pull`, rebuild, then `docker compose exec app velotheque normalize`, then Sync now
+- [ ] Deploy (owner): tag a release (or `deploy velo`), then `docker compose exec app velotheque normalize`, then Sync now
 - [x] "No bike" counts and matches rides only, also with the switch on (owner, 2026-10-26)
 - [x] Re-importing a newer export (owner question, 2026-10-26): checked, activity ids are kept (upsert on source + Strava id), so curated links survive; mentions use ON CONFLICT DO NOTHING (a removed one stays hidden), manual people untouched, photos upserted by UUID; API metadata still wins. Test `test_new_export_keeps_curated_data`. Fix: track files are now copied only for new or changed rows (a second export used to duplicate every file into its own folder)
 
@@ -59,7 +59,7 @@ VERIFY (2026-10-16, gpx.studio source on GitHub): its "Open in" link is `https:/
 - [x] One row of outlined buttons in the page header: Strava ↗ · gpx.studio ↗ · GPX ↓ · ↻ Refresh (↗ leaves the app, ↓ downloads); the route's Import shortcut dropped (it's on the routes list)
 - [x] Tests: GPX round trip through our own parser, slugs, link encoding, web (CORS header, file names, original bytes)
 - [x] Real check: headless Chrome opened a local ride in gpx.studio (76.76 km, elevation profile, times OK) and a 5-stage race (5 files, one per stage)
-- [ ] Deploy to the Pi (owner): `git pull`, rebuild; first click → allow Chrome's local-network prompt
+- [ ] Deploy to the Pi (owner): tag a release (or `deploy velo`); first click → allow Chrome's local-network prompt
 
 ## M4 — Components and maintenance (2026-10-16, before the SSD move)
 Decisions (owner, 2026-10-16): intervals in km, hours **or days** (calendar time since the last reset, ridden or not: sealant, brake fluid, yearly fork service); each service type counts **all / outdoor only / indoor only** rides (owner's case: an old road bike as the home-trainer bike → chain all, bike cassette and rear tyre outdoor, trainer cassette indoor); bars amber at 90%, red past 100%, plus a "Due soon" list (≥ 50%, most worn first) to know what to order. Old gym virtual rides stay without a bike (owner doesn't care); nothing backfills bikes: Strava's default gear applies to new uploads, and sync only re-reads 14 days. SSD not there yet: curated data starts on the SD card, covered by the nightly Proton backup.
@@ -73,7 +73,7 @@ Rules: usage = rides on the assignment's bike with `mounted_at <= start_at < rem
 - [x] Tests: usage (ride at mounted_at counts, removal exclusive, swap across bikes, reset levels, ride at reset time, km/hours/days, indoor scopes, lifetime), exclusion + date checks, copy schedule, delete guard, cross-component event refused, filter, ride page list, timezone parsing, web flow (133 total)
 - [x] Local stack with real data: migration ran at startup; 7 scenario components (chain with wax + outdoor wear check, fork with level 1/2 services, tyre with 90-day sealant, trainer-bike chain + indoor-only trainer cassette, wheelset moved between two bikes, spare chain with copied intervals); /components in ~40 ms; headless check of overview, component pages, ride page, Explore filter (17 rides across both bikes), phone (no horizontal scroll), history save/add with overlap error, quick Log, inline service edit. Scenario components deleted afterwards
 - [x] README, .env.example (`TIMEZONE`)
-- [ ] Deploy to the Pi (owner): `git pull`, rebuild (migration 0010 runs at startup), then enter the real components
+- [ ] Deploy to the Pi (owner): `deploy velo` (migration 0010 runs at startup; a tag alone is held), then enter the real components
 - [ ] Move data to the SSD when it arrives (curated data now exists)
 - [x] "Or N days" on km/hours intervals (owner request, 2026-10-16: RockShox full service "200 h or 1 year, whichever comes first"). Time only (owner agreed; every whichever-first rule found is a time limit). Migration 0011 `service_type.or_days` (null, > 0, not on days intervals); usage returns `days` since the same reset; the bar follows the larger fraction, bold marks the leading limit; copy schedule carries it. Tests 139. Local: the owner's MTB fork, last full service Jan 2026 → 38/200 h · **269/365 d** (bar at 74%, by days); phone 390 px OK; test services removed afterwards
 - [x] Owner's MTB: 30 parts from Strava's gear page via a one-off script (not in the repo), mounted since its first ride; local totals 2,877 km / 55 rides = Strava's 2,876.8 km
@@ -87,7 +87,7 @@ VERIFY (2026-10-16): the API gives no list of group members. Activities carry `a
 - [x] Ride page: Riders stat, "Rode with" chips (link to Explore), Add someone (datalist), × remove, "Strava counted a group of N" hint
 - [x] Filters `group` (solo/group) and `with` (person), with facet counts; Settings → People (ride counts, rename = merge)
 - [x] Tests (120 total), local migration on real data (317 solo, 73 group), headless check of ride page add/remove, Explore, Settings
-- [ ] Deploy to the Pi (owner): `git pull`, rebuild (migration 0009 runs at startup)
+- [ ] Deploy to the Pi (owner): `deploy velo` (migration 0009 runs at startup; a tag alone is held)
 
 ## M6 — Regions (started 2026-10-16)
 VERIFY (2026-10-16): GADM 4.1 is still the current release (no 4.2/5.0 on geodata.ucdavis.edu). One GeoPackage per country with layers `ADM_ADM_0..n`, MULTIPOLYGON/4326, readable with stdlib sqlite3 (GPKG header + WKB) → no GDAL. Sizes vary a lot (CHE 14 MB, ESP 33, FRA 49, USA 113, AUT 171, GBR 431). Levels: FRA 0–5 (5 = 36,611 communes, pre-*communes nouvelles*), ESP 0–4 (8,302 municipios), CHE 0–3 (2,781 communes, pre-merger). `ENGTYPE_n` gives the type label (FRA level 3 says "Districts"); `VARNAME_n` is `|`-separated, sometimes truncated or mis-encoded (e.g. "Andaluc¡a"), "NA" = none; lakes are separate "Water body" regions (skipped). Valencia province has VARNAME València; Valencia municipality comes in 2 pieces (two comarcas).
@@ -104,7 +104,7 @@ Plan (done 2026-10-16):
 - [x] Backup: dump-db.sh leaves out region/region_part/activity_region/route_region data (local dump 150 → 85 MB); scratch restore checked (region_country kept, region empty); restore.sh --live prints the reload step; README
 - [x] Tests: synthetic GeoPackage (with and without envelope), load/reload/remove, tagging + ancestors, routes, filter + facets + none, search, web, mentions (111 total)
 - [x] Real data locally: FRA+ESP+CHE in 20 s (incl. CHE download), reload 15 s; 307/341 tracked rides tagged; Explore with region filters 25–130 ms on the Mac, suggest ~50 ms, France outline 0.26 s; headless check of Explore (filter, search, tick, Both, phone), ride/route pages, Settings
-- [ ] Deploy to the Pi (owner): `git pull`, rebuild, `regions load` with the countries ridden; then `sudo ops/install-backup.sh` (dump-db.sh changed)
+- [ ] Deploy to the Pi (owner): tag a release (or `deploy velo`), `regions load` with the countries ridden; then `sudo ops/install-backup.sh` (dump-db.sh changed)
 - Notes: htmx inherits `hx-swap`/`hx-push-url` from the filters form, so the region search input sets its own. Countries in the local data without regions yet: FIN, IRL, USA, AUS, DNK (rides); routes also cross ALB, MNE, GRC, KGZ, IRL, USA/CAN, Eastern Europe.
 
 ## M5 — Routes (started 2026-10-16; M4 deferred until the SSD is in)
