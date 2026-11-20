@@ -327,3 +327,21 @@ def test_new_export_keeps_curated_data(db, settings, tmp_path):
     assert [(p.activity_id, p.unique_id) for p in photos(db)] == [
         (p.activity_id, p.unique_id) for p in before_photos
     ]
+
+
+def test_export_replaces_the_api_primary_photo_with_its_full_size_file(
+    db, settings, tmp_path, strava
+):
+    from PIL import Image
+
+    primary = {"unique_id": "a", "urls": {"600": "https://cdn.test/a-600.jpg"}}
+    strava.add(summary(1, total_photo_count=1, photos={"primary": primary, "count": 1}))
+    sync(db, strava, settings=settings)
+    api_copy = settings.data_dir / "photos/1/a.jpg"
+    api_copy.write_bytes(jpeg_bytes((600, 450)))
+
+    import_export(db, settings, make_export(tmp_path / "export_1.zip"))
+
+    with Image.open(api_copy) as image:
+        assert image.size == (800, 600)
+    assert {(p.unique_id, p.source, p.width) for p in photos(db)} >= {("a", "export", 800)}

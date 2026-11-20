@@ -10,6 +10,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] `ops/restore.sh` → `scripts/restore-db.sh`, local dump files only
 - [ ] Deploy (owner): held because of migration 0012, so `deploy velo <tag>` by hand, after the host's backup installer has removed the old velotheque-backup units
 
+## Done 2026-11-20: full-size photos from a newer export
+- [x] A newer export now replaces the 600 px API copy of a ride's primary photo with its full-size original (same file name; an export media file of another size overwrites the existing one, written via a `.part` file). Before, the importer skipped files that existed, so the 600 px copy stayed. Test: `test_export_replaces_the_api_primary_photo_with_its_full_size_file`
+- Checked on re-import: activities are upserted by Strava ID (same row id), so components, routes, saved views and people stay; removed mention links stay hidden; new photos (new UUIDs) are added.
+
 ## Next (proposed 2026-11-11)
 - [ ] Plan 1: port Postgres/PostGIS → DuckDB: `docs/plans/01-duckdb-port.md`. First step: run the spatial-extension check on the Pi.
 - [!] Plan 2: desktop app for friends: `docs/plans/02-desktop-app.md`. Blocked by Plan 1.

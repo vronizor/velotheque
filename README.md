@@ -132,7 +132,7 @@ How it combines with the API:
 
 Photos and videos are copied to `$VELOTHEQUE_DATA_DIR/photos/<strava activity id>/`, and about 400 px thumbnails are made under `thumbs/`.
 
-Strava's API has no documented endpoint that lists every photo of an activity. So for rides newer than your export, a sync stores only the **primary** photo, taken from the activity details at no extra API cost. Importing a newer export later fills in the rest. Photos are de-duplicated by Strava's photo UUID, which is also the export's media file name.
+Strava's API has no documented endpoint that lists every photo of an activity. So for rides newer than your export, a sync stores only the **primary** photo, a 600 px copy taken from the activity details at no extra API cost. Importing a newer export later fills in the rest and swaps that copy for the full-size original. Photos are de-duplicated by Strava's photo UUID, which is also the export's media file name.
 
 ## Routes
 

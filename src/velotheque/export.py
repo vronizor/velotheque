@@ -25,11 +25,19 @@ def read_activities_csv(data: bytes) -> pl.DataFrame:
     return pl.read_csv(io.BytesIO(data), infer_schema_length=0)
 
 
-def _extract(archive: zipfile.ZipFile, member: str, target: Path) -> Path:
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with archive.open(member) as src, open(target, "wb") as dst:
-            shutil.copyfileobj(src, dst)
+def _extract(archive: zipfile.ZipFile, member: str, target: Path, replace: bool = False) -> Path:
+    """Copy a member out once. With `replace`, a file of another size is overwritten: a ride's
+    primary photo synced from the API is a 600 px copy under the same name as the export's
+    full-size original."""
+    if target.exists() and not (
+        replace and target.stat().st_size != archive.getinfo(member).file_size
+    ):
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(f".{target.name}.part")
+    with archive.open(member) as src, open(partial, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    partial.replace(target)
     return target
 
 
@@ -94,7 +102,7 @@ def import_export(
                 for media in media_paths(row.get("Media")):
                     if media in members:
                         target = photo_dir(settings, source_id) / media_filename(media)
-                        _extract(archive, media, target)
+                        _extract(archive, media, target, replace=True)
                 if sport in CYCLING_SPORT_TYPES and row.get("Activity Gear") and not gear_id(row):
                     report.unmatched_gear.append(
                         (source_id, row.get("Activity Name") or "", row["Activity Gear"])
