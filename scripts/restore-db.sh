@@ -1,32 +1,25 @@
 #!/usr/bin/env bash
-# Restore a Vélothèque dump. By default into a scratch database (a restore *test*), then
-# compare row counts with the live database. Replacing the live database needs --live.
+# Restore a pg_dump of Vélothèque (custom format, e.g. from the host's backup). By default into
+# a scratch database (a restore *test*), then compare row counts with the live database.
+# Replacing the live database needs --live.
 #
-#   ops/restore.sh path/to/velotheque-2026-10-15T0330Z.dump
-#   ops/restore.sh --from-drive velotheque-2026-10-15T0330Z.dump     (as root on the Pi)
-#   ops/restore.sh --latest-from-drive
-#   ops/restore.sh --live path/to/dump                               (asks for confirmation)
-#   ops/restore.sh --drop-scratch
+#   scripts/restore-db.sh path/to/velotheque.dump
+#   scripts/restore-db.sh --live path/to/velotheque.dump      (asks for confirmation)
+#   scripts/restore-db.sh --drop-scratch
 set -euo pipefail
 
 VELOTHEQUE_DIR="${VELOTHEQUE_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-if [ -f /etc/velotheque/backup.env ]; then
-  set -a; . /etc/velotheque/backup.env; set +a
-fi
 TARGET="velotheque_restore_test"
 LIVE=0
 SOURCE=""
-FROM_DRIVE=""
 DROP_SCRATCH=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --live) LIVE=1 ;;
     --target) TARGET="$2"; shift ;;
-    --from-drive) FROM_DRIVE="$2"; shift ;;
-    --latest-from-drive) FROM_DRIVE="latest" ;;
     --drop-scratch) DROP_SCRATCH=1 ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
     *) SOURCE="$1" ;;
   esac
   shift
@@ -43,31 +36,7 @@ if [ "$DROP_SCRATCH" = 1 ]; then
   exit 0
 fi
 
-if [ -n "$FROM_DRIVE" ]; then
-  : "${BACKUP_USER:=velobackup}" "${PROTON_DRIVE_BIN:=proton-drive}" "${REMOTE_PARENT:=/my-files}" "${REMOTE_FOLDER:=Velotheque}"
-  export VELOTHEQUE_DATA_DIR PROTON_DRIVE_VERSION PROTON_DRIVE_BIN REMOTE_PARENT REMOTE_FOLDER
-  export PROTON_DRIVE_CREDENTIALS_STORE="${PROTON_DRIVE_CREDENTIALS_STORE:-pass}"
-  helper=/usr/local/lib/velotheque-backup/proton_backup.py
-  [ -f "$helper" ] || helper="$VELOTHEQUE_DIR/ops/proton_backup.py"
-  # The Proton session belongs to the backup user; run the CLI as that user.
-  as_backup_user() {
-    if [ "$(id -un)" = "$BACKUP_USER" ]; then "$@"; else
-      sudo -u "$BACKUP_USER" -H --preserve-env=VELOTHEQUE_DATA_DIR,PROTON_DRIVE_VERSION,PROTON_DRIVE_BIN,PROTON_DRIVE_CREDENTIALS_STORE,REMOTE_PARENT,REMOTE_FOLDER "$@"
-    fi
-  }
-  remote="$REMOTE_PARENT/$REMOTE_FOLDER/db"
-  if [ "$FROM_DRIVE" = "latest" ]; then
-    FROM_DRIVE="$(as_backup_user python3 "$helper" latest-remote-dump)"
-  fi
-  workdir="$(as_backup_user mktemp -d)"
-  trap 'as_backup_user rm -rf "$workdir"' EXIT
-  as_backup_user "$PROTON_DRIVE_BIN" filesystem download --json --file-conflict-strategy remove \
-    --folder-conflict-strategy merge "$remote/$FROM_DRIVE" "$workdir" > /dev/null
-  SOURCE="$workdir/$FROM_DRIVE"
-  echo "downloaded $FROM_DRIVE"
-fi
-
-[ -n "$SOURCE" ] && [ -f "$SOURCE" ] || { echo "usage: $0 [--live] DUMP_FILE | --from-drive NAME | --latest-from-drive" >&2; exit 2; }
+[ -n "$SOURCE" ] && [ -f "$SOURCE" ] || { echo "usage: $0 [--live] DUMP_FILE | --drop-scratch" >&2; exit 2; }
 compose exec -T db pg_restore --list < "$SOURCE" > /dev/null || { echo "$SOURCE is not a readable pg_dump archive" >&2; exit 1; }
 
 if [ "$LIVE" = 1 ]; then
@@ -112,4 +81,4 @@ if [ "$restored" = "$live" ]; then
 else
   echo "RESTORE TEST DIFFERS: expected if the live database changed since the dump; check the numbers"
 fi
-echo "drop the scratch copy with: ops/restore.sh --drop-scratch"
+echo "drop the scratch copy with: scripts/restore-db.sh --drop-scratch"

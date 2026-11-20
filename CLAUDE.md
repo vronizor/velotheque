@@ -17,11 +17,11 @@ uv run ruff check && uv run ruff format --check
 - Data layers: **raw** (append-only, `store_raw` skips identical payloads) → **normalized** (`normalize.py`, rebuilt from raw) → **derived** (`derive.py`, `velotheque rebuild-derived`) → **curated** (hand-entered, irreplaceable, backed up).
 - Migrations are hand-written in `src/velotheque/migrations/versions/`; `tables.py` must match (drift test `tests/test_migrations.py`).
 - Filters: register one `Field` in `filters/fields.py` (param, entities, parse, where, optional facet). OR within a field, AND across fields; facet counts exclude their own field.
-- Host-side backup code in `ops/` is stdlib-only; everything Proton-specific lives in `ops/proton_backup.py`.
+- Backups run on the host, outside this repo (the Pi's own ops repo): `pg_dump` of the `db` service and new files under `photos/`. Nothing in the app reports backups. `scripts/restore-db.sh` restores a dump.
 - Conventions: polars (never pandas), few dependencies, minimal comments, SQLAlchemy Core.
 
 ## Public repository
 The GitHub repo is **public**. Never commit hostnames, tailnet names, IPs, usernames, Strava IDs or other personal data (use placeholders like `mypi.my-tailnet.ts.net`). Scan staged files before every commit.
 
 ## Deployment
-The Pi deploys release tags on its own: a push to `main` deploys nothing; a new `vX.Y` tag on main is built, checked and rolled back if it fails, within 5 minutes. Tag only when the owner asks for a release. Don't tell the owner to `git pull` on the Pi; by hand it is `deploy velo [REF]`. Migrations run when the app container starts; a release that adds one under `src/velotheque/migrations/versions/` is held, not deployed automatically: the owner runs `deploy velo` when he can watch it. After a release that changes `ops/`, the owner re-runs `sudo ops/install-backup.sh`. Give the owner exact commands plus what to expect, and ask for the output.
+The Pi deploys release tags on its own: a push to `main` deploys nothing; a new `vX.Y` tag on main is built, checked and rolled back if it fails, within 5 minutes. Tag only when the owner asks for a release. Don't tell the owner to `git pull` on the Pi; by hand it is `deploy velo [REF]`. Migrations run when the app container starts; a release that adds one under `src/velotheque/migrations/versions/` is held, not deployed automatically: the owner runs `deploy velo` when he can watch it. Give the owner exact commands plus what to expect, and ask for the output.

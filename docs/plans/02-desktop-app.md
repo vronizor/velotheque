@@ -88,7 +88,7 @@ Proton Drive backups, Tailscale, gpx.studio self-hosting.
 
 ## Work order
 
-1. Config: everything Pi-specific (Tailscale base URL, the Proton backup indicator) becomes a
+1. Config: everything Pi-specific (Tailscale base URL) becomes a
    `deployment = "pi" | "desktop"` setting, so one codebase serves both.
 2. The buttons from the table above, built and used on the Pi first (they help there too).
 3. PyInstaller spec for the backend; get it running frozen on the Mac.

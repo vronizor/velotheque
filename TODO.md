@@ -3,6 +3,13 @@
 Plan: Milestone 4 (Components); started before the SSD move (owner, 2026-10-16). Spec: `velotheque-spec.md`.
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
+## Done 2026-11-20: backup moved to the host
+- [x] The Pi's host backup job now takes the database (pg_dump, same table-data exclusions) and the photos (new files only) with the other apps' data, into one Proton Drive folder; the owner chose to see backup status there only.
+- [x] Removed `ops/` (proton_backup.py, dump-db.sh, record-status.sh, install-backup.sh, units), the header backup dot, the Settings backup section, the `backup-status` CLI and its tests
+- [x] Migration 0012 drops `backup_status` (downgrade recreates it; checked both ways on Postgres 16 + PostGIS)
+- [x] `ops/restore.sh` → `scripts/restore-db.sh`, local dump files only
+- [ ] Deploy (owner): held because of migration 0012, so `deploy velo <tag>` by hand, after the host's backup installer has removed the old velotheque-backup units
+
 ## Next (proposed 2026-11-11)
 - [ ] Plan 1: port Postgres/PostGIS → DuckDB: `docs/plans/01-duckdb-port.md`. First step: run the spatial-extension check on the Pi.
 - [!] Plan 2: desktop app for friends: `docs/plans/02-desktop-app.md`. Blocked by Plan 1.
@@ -13,7 +20,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] Pi access: skipped by choice. Test on local Docker (arm64, same as the Pi); owner git-pulls on the Pi
 - [x] Browser check of the UI: done by the owner, all working
 - [x] Put `STRAVA_CLIENT_SECRET` in `.env` (never commit it)
-- [ ] Proton Drive CLI on the Pi: install linux/arm64 build + `sudo ops/install-backup.sh` + login (README → Backup). VERIFY results are in the M3 section.
+- [x] Proton Drive CLI on the Pi (now set up by the host's backup job, not this repo)
 - [x] Click "Upgrade" in the Strava API dashboard (read limit 100/1,000 → 200/2,000)
 - [ ] Note: the dashboard's own access token only has `scope: read`. The app gets its own token via the OAuth flow, with `read,activity:read_all,profile:read_all`.
 
@@ -24,9 +31,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - [x] 2026 Strava API changes: nothing blocking. API base URL is configurable, Bearer header always sent.
 
 ## Pi deployment notes
-- No SSD mounted yet: data on the SD card at /srv/velotheque (not under /mnt/ssd, so a later mount can't hide it). 15 GB free. Move to the SSD (rsync -aHAX, then change VELOTHEQUE_DATA_DIR in .env and backup.env) before Milestone 4's curated data exists.
+- No SSD mounted yet: data on the SD card at /srv/velotheque (not under /mnt/ssd, so a later mount can't hide it). 15 GB free. Move to the SSD (rsync -aHAX, then change VELOTHEQUE_DATA_DIR in .env and the photos path of the host's backup) before Milestone 4's curated data exists.
 - No Caddy on the Pi (the spec assumed one): HTTPS + names via Tailscale Services (`tailscale serve --service=svc:<name> --https=443 127.0.0.1:<port>`; Pi tagged tag:server; Funnel left off). BASE_URL and the Strava callback domain use the service name.
-- /etc/velotheque/backup.env on the Pi: VELOTHEQUE_DATA_DIR=/srv/velotheque until the SSD move
 - Port 8000 (and 8001, 8080, 80, 53, 3000) are used by other services on the Pi: APP_PORT=8010 there.
 - 2026-10-29: Postgres was published on the Tailscale IP; after a reboot Docker started before Tailscale had that address, the bind failed and db stayed Exited for two days. Now 127.0.0.1 only, reached over the tailnet with `tailscale serve --tcp 5432` (README, Read-only SQL access).
 
@@ -105,7 +111,7 @@ Plan (done 2026-10-16):
 - [x] Backup: dump-db.sh leaves out region/region_part/activity_region/route_region data (local dump 150 → 85 MB); scratch restore checked (region_country kept, region empty); restore.sh --live prints the reload step; README
 - [x] Tests: synthetic GeoPackage (with and without envelope), load/reload/remove, tagging + ancestors, routes, filter + facets + none, search, web, mentions (111 total)
 - [x] Real data locally: FRA+ESP+CHE in 20 s (incl. CHE download), reload 15 s; 307/341 tracked rides tagged; Explore with region filters 25–130 ms on the Mac, suggest ~50 ms, France outline 0.26 s; headless check of Explore (filter, search, tick, Both, phone), ride/route pages, Settings
-- [ ] Deploy to the Pi (owner): tag a release (or `deploy velo`), `regions load` with the countries ridden; then `sudo ops/install-backup.sh` (dump-db.sh changed)
+- [ ] Deploy to the Pi (owner): tag a release (or `deploy velo`), `regions load` with the countries ridden (the dump-db.sh change now lives in the host's backup job)
 - Notes: htmx inherits `hx-swap`/`hx-push-url` from the filters form, so the region search input sets its own. Countries in the local data without regions yet: FIN, IRL, USA, AUS, DNK (rides); routes also cross ALB, MNE, GRC, KGZ, IRL, USA/CAN, Eastern Europe.
 
 ## M5 — Routes (started 2026-10-16; M4 deferred until the SSD is in)

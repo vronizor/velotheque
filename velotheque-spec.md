@@ -182,9 +182,9 @@ Adding a filter later means registering one field, nothing else.
 - Per component: assignment history.
 - A list of rides with no bike assigned.
 
-**Settings**: Strava connection, sync history, backup status.
+**Settings**: Strava connection, sync history. (Backup status: removed 2026-11-20, see Backup.)
 
-The header shows the "Sync now" button and a backup indicator that turns red if the last successful backup is older than 48 h.
+The header shows the "Sync now" button. (The backup indicator was removed on 2026-11-20.)
 
 ### Component usage rules
 
@@ -209,6 +209,8 @@ The header shows the "Sync now" button and a backup indicator that turns red if 
 ---
 
 ## Backup → Proton Drive (Milestone 3, before any curated data exists)
+
+> **Superseded 2026-11-20:** the backup moved out of this repo into the host's own backup job, and the header indicator and `backup_status` were removed. Kept below as the original milestone.
 
 The backup runs on the host, not in a container, because Proton's official `proton-drive` CLI keeps a login session. It is triggered by a systemd timer. Scripts and unit files live in the repo under `ops/`.
 

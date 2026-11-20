@@ -3,7 +3,6 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import Connection, select
 
-from velotheque import backup
 from velotheque.config import get_settings
 from velotheque.db import get_engine
 from velotheque.strava.client import StravaClient
@@ -40,11 +39,6 @@ def render_widget(request: Request, conn: Connection, job=None, finished_event=F
     if finished_event:
         response.headers["HX-Trigger"] = "syncFinished"
     return response
-
-
-@router.get("/backup/indicator")
-def backup_indicator(request: Request, conn: Connection = Depends(get_conn)):
-    return templates.TemplateResponse(request, "_backup.html", {"backup": backup.state(conn)})
 
 
 @router.get("/jobs/latest")

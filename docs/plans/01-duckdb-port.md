@@ -61,31 +61,26 @@ conflict error).
   indexes. Replace it with a `threading.Lock` in `web/jobs.py`; with one process, that lock is
   the whole truth. `mark_interrupted` at startup stays.
 
-## Backups (systemd units + Proton Drive)
+## Backups (host backup job + Proton Drive)
 
-The systemd **units stay as they are** (timer at 03:30, oneshot service, `velobackup` user).
-Three scripts change, because each one assumes a second process can reach the DB:
+Since 2026-11-20 the backup isn't in this repo: the host's backup job runs `pg_dump` in the
+`db` service and sends new photo files. The port changes what it has to dump:
 
-| Script | Today | After the port |
+| Piece | Today | After the port |
 |---|---|---|
-| `ops/dump-db.sh` (ExecStartPre, root) | `pg_dump` inside the `db` container | `compose stop app` → `compose run --rm app velotheque snapshot /data/backups/<ts>` → `compose start app`. Then tar the snapshot dir into `$STATE_DIR/dumps/velotheque-<ts>.tar` |
-| `ops/record-status.sh` (ExecStopPost, root) | `compose exec app velotheque backup-status` (writes the DB) | Appends a line to `$VELOTHEQUE_DATA_DIR/backup-status.jsonl`. No DB write, so no lock, and the multi-hour upload never collides with the app |
-| `ops/restore.sh` | `pg_restore` into a scratch DB or the live one | Restore test: load the tar into a scratch `.duckdb` file and compare row counts with the latest snapshot. Live restore: stop app, load into a new file, swap files, start app |
+| Database dump (host job, root) | `pg_dump` inside the `db` container | `compose stop app` → `compose run --rm app velotheque snapshot /data/backups/<ts>` → `compose start app`, then the snapshot dir is backed up as plain files (the host job's `files` kind, or a new kind that runs that command) |
+| `scripts/restore-db.sh` | `pg_restore` into a scratch DB or the live one | Restore test: load the snapshot into a scratch `.duckdb` file and compare row counts with the latest snapshot. Live restore: stop app, load into a new file, swap files, start app |
 
 - **Snapshot format:** one Parquet file per table plus `schema.sql`, written by an in-process
   `velotheque snapshot` command. Parquet is readable by any DuckDB or polars version, which
   matters because an older DuckDB can't open a newer DuckDB file. Region tables are left out, as
   today (`region_country` stays, so `regions reload` knows what to fetch).
-- **Downtime:** the app is stopped for the seconds the snapshot takes, at 03:30. A sync running
+- **Downtime:** the app is stopped for the seconds the snapshot takes, at night. A sync running
   at that moment gets marked `interrupted` at restart, as it is today after any restart.
 - **Read-only SQL replacement:** the latest snapshot dir on the Pi (and on Proton Drive) can be
   queried directly: `duckdb -c "SELECT … FROM '/srv/…/backups/latest/activity.parquet'"`.
-- The app reads backup status from `backup-status.jsonl` instead of the `backup_status` table.
-  The header indicator and the Settings history keep working; the table is dropped.
-- `ops/proton_backup.py`: change the `DUMP_NAME` regex and the `latest_dump` glob from `.dump`
-  to `.tar`. Retention logic is unchanged. Photos are files on disk and are unaffected.
-- After deploying: `sudo ops/install-backup.sh`, then `sudo systemctl start velotheque-backup`
-  and `journalctl -u velotheque-backup -n 50`.
+- The app no longer reports backups, so there is no status to move.
+- Photos are files on disk and are unaffected.
 
 The alternative was an authenticated admin HTTP endpoint that snapshots without stopping the app.
 It means no downtime, but adds an auth surface reachable over the tailnet (`tailscale serve`
@@ -189,7 +184,7 @@ Only raw and curated data are irreplaceable; everything else is rebuilt.
    `components.py`, `companions.py`, `photos.py`, `normalize.py`, `routes.py`, `regions.py`,
    `derive.py` (overlap last).
 4. CLI lock-error hint; Settings buttons for import-export and rebuild-derived.
-5. Backup: `velotheque snapshot`, the three ops scripts, `backup-status.jsonl`, restore test.
+5. Backup: `velotheque snapshot`, the host backup job's dump step, `scripts/restore-db.sh`, restore test.
 6. `migrate-from-postgres`, parity checks on the Pi, switch over.
 7. README: stack, CLI section (stop/run/start), backup and restore, read-only SQL → Parquet
    snapshot. TODO.md: VERIFY results.

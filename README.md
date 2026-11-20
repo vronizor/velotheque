@@ -10,7 +10,7 @@ All six milestones (this version) cover:
 - normalized rides and tracks
 - an **Explore** page: a map, list and totals; filters for date, type, bike, distance, elevation, duration, photos and text search, with live counts next to each option; drawing a rectangle or polygon on the map, or "Filter to this view"; and saved views
 - a **Ride** page with a photo gallery
-- nightly backups of the database and photos to Proton Drive, a tested restore, and a backup indicator in the header
+- a restore script for database dumps (the nightly backup itself runs on the host, see Backup)
 - a **route library**: GPX import (upload form and CLI, race stages merged into one route), tags, how much of each route you've ridden, and routes on the Explore map
 - **regions**: GADM boundaries per country, every ride and route tagged with the regions it crosses, and a region filter with accent-insensitive place search
 - **who you rode with**: Strava's group size on every ride, and a "Rode with" list per ride, filled from @mentions in descriptions or by hand, with Solo / Group and Rode with filters
@@ -232,109 +232,33 @@ docker compose exec app velotheque regions remove DEU
 - **Settings** lists the loaded countries and links to the rides and routes with no region, as a hint that a country is missing.
 - **Data quirks:** GADM 4.1 is from before the recent commune mergers in France and Switzerland, so some merged communes appear under their old names. Variant names are sometimes truncated or mis-encoded in GADM itself.
 
-## Backup to Proton Drive
+## Backup
 
-> **A backup isn't trusted until a restore has been tested.** Run the restore test below after setting this up, and again from time to time.
+The app has no backup job of its own: on the Pi, the host's backup job takes the database and the photos every night, next to the other apps' data. It sends Proton Drive:
 
-**Schedule:** a systemd timer runs every night at about 03:30.
+- the database: `pg_dump --format=custom` from the `db` container, checked with `pg_restore --list`. Region boundaries and their tags are left out (`--exclude-table-data` on `region`, `region_part`, `activity_region`, `route_region`): they can be downloaded again and would almost double the dump. The list of loaded countries is kept.
+- the photos and videos under `$VELOTHEQUE_DATA_DIR/photos`, only the files not sent before. Thumbnails aren't sent; they're rebuilt after a restore.
 
-**Each run:**
-1. **Dump** (as root, only to reach Docker): `pg_dump -Fc` from the `db` container into `/var/lib/velotheque-backup/dumps/`. The archive is checked with `pg_restore --list` before anything is uploaded. Region boundaries and their tags are left out: they can be downloaded again and would almost double the dump (+63 MB for FRA + ESP + CHE). The list of loaded countries is kept.
-2. **Upload** (as the unprivileged `velobackup` user, the only account holding the Proton session):
-   - the dump to `Velotheque/db/velotheque-<UTC date>T<time>Z.dump`
-   - photos and videos not yet in the local manifest (`photos-manifest.tsv`) to `Velotheque/photos/<activity>/`, in batches of 200. Thumbnails aren't uploaded; they're rebuilt after a restore.
-3. **Prune:** keep the newest dump of each of the last 14 days and of each of the last 8 ISO weeks. The rest is moved to the Proton Drive trash.
-4. **Record** the result (as root): a `backup_status` row, which drives the header dot.
-   - green: the last success is under 48 h old
-   - amber: the last run failed, but a recent success exists
-   - red: no successful backup in 48 h
-
-The Proton-specific code is all in `ops/proton_backup.py` (Python standard library only), so swapping the tool later means changing one small file.
-
-### What I verified about the `proton-drive` CLI (v0.9.0)
-
-- **Builds:** there's an official Linux arm64 (glibc) build, with SHA-512 checksums on Proton's download page.
-- **Deleting:** it can delete remote files (`filesystem delete` and `filesystem trash`). Old dumps are pruned by name, not by overwriting fixed file names.
-- **Headless login:** `auth login` prints a URL you can open on another device. Where the session is stored is set by `PROTON_DRIVE_CREDENTIALS_STORE`:
-  - `keychain` (default): needs a desktop keyring
-  - `pass`: GPG-encrypted, the documented headless option
-  - `unsafe_file`: plain JSON, which Proton calls testing only
-- **Version pin:** the CLI is pre-1.0, so the backup refuses to run unless `proton-drive --version` matches `PROTON_DRIVE_VERSION`.
-- **Checked live against a throwaway Drive folder** (all undocumented):
-  - `filesystem list --json` returns an array of nodes whose `name` is an object, `{"ok": true, "value": "…"}`.
-  - Errors exit with code 1 and a message on stderr, such as `You need to login first`.
-  - Uploading a folder with `--folder-conflict-strategy merge` creates any missing remote folders in one call.
-  - Re-uploading unchanged files is skipped, so the second run took 4.5 s against 22 s for the first.
-  - `filesystem delete` only works on items already in the trash. Pruning therefore only trashes, and Proton (or you) empties the trash.
-  - Per-command `--help` doesn't work in 0.9.0.
-
-### Setup on the Pi (once)
-
-```sh
-# 1. The CLI: download the linux/arm64 build from https://proton.me/drive/download,
-#    check its SHA-512 against the published one, then:
-sudo install -m 0755 proton-drive /usr/local/bin/proton-drive
-proton-drive --version            # must match PROTON_DRIVE_VERSION in backup.env
-
-# 2. User, state dir, systemd units and /etc/velotheque/backup.env
-sudo apt install pass             # for PROTON_DRIVE_CREDENTIALS_STORE=pass
-sudo ops/install-backup.sh        # creates backup.env on the first run; edit it, run again
-
-# 3. A GPG key and password store for the backup user (no passphrase: the job runs
-#    unattended, so file permissions are what protect it; the home dir is 700)
-sudo -u velobackup -H gpg --batch --pinentry-mode loopback --passphrase '' \
-  --quick-gen-key velotheque-backup default default never
-sudo -u velobackup -H pass init velotheque-backup
-
-# 4. Log the backup user in. Open the printed URL on your laptop and finish there.
-sudo -u velobackup -H env PROTON_DRIVE_CREDENTIALS_STORE=pass proton-drive auth login
-
-# 5. First run (also uploads every photo once), then check
-sudo systemctl start velotheque-backup
-journalctl -u velotheque-backup -n 50 --no-pager
-```
-
-Re-run `sudo ops/install-backup.sh` after every release that changes `ops/`.
-
-**When the Proton session expires**, the next run fails: the header dot turns amber, then red after 48 h, and Settings shows the error. Log in again with step 4, then `sudo systemctl start velotheque-backup`.
-
-**If `pass` is too fiddly**, set `PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file` in `backup.env` and redo step 4. The session is then a plain file under `/var/lib/velotheque-backup/.local/share/proton-drive-cli/`. The script keeps it `chmod 600` in a `700` directory owned by `velobackup`.
+The curated data (bikes, components, routes, saved views) only exists on this machine until a backup has run.
 
 ### Restore
 
-```sh
-# Restore test: newest dump from Proton Drive into a scratch database, compared with live
-sudo ops/restore.sh --latest-from-drive
-#   → "RESTORE TEST OK: row counts match the live database"
-sudo ops/restore.sh --drop-scratch
+> **A backup isn't trusted until a restore has been tested.**
 
-# Or from a local file (e.g. /var/lib/velotheque-backup/dumps/…)
-sudo ops/restore.sh /var/lib/velotheque-backup/dumps/velotheque-2026-10-15T0330Z.dump
+`scripts/restore-db.sh` takes a dump file (from the host's backup):
+
+```sh
+# Restore test: into a scratch database, compared with the live one
+sudo scripts/restore-db.sh /path/to/velotheque.dump
+#   → "RESTORE TEST OK: row counts match the live database"
+sudo scripts/restore-db.sh --drop-scratch
 
 # Real disaster recovery: replace the live database (stops the app; asks you to type its name)
-sudo ops/restore.sh --live /path/to/velotheque-….dump
+sudo scripts/restore-db.sh --live /path/to/velotheque.dump
+docker compose exec app velotheque regions reload    # the dump only has the list of countries
 ```
 
-After restoring the live database, load the regions back (the dump only has the list of countries):
-
-```sh
-docker compose exec app velotheque regions reload
-```
-
-To restore photos, download the folder back, then rebuild the thumbnails and photo rows:
-
-```sh
-sudo -u velobackup -H env PROTON_DRIVE_CREDENTIALS_STORE=pass proton-drive filesystem download \
-  --file-conflict-strategy skip --folder-conflict-strategy merge \
-  /my-files/Velotheque/photos /tmp/photos-restore
-sudo rsync -a /tmp/photos-restore/photos/ "$VELOTHEQUE_DATA_DIR/photos/"
-docker compose exec app velotheque normalize
-```
-
-Tested on the Mac with the real CLI and a throwaway Drive folder:
-- the full nightly run took 22 s (a 51 MB dump and 2 photos)
-- pruning with tight retention trashed exactly the expected dumps
-- `restore.sh --latest-from-drive` downloaded and restored the dump in 13 s, with row counts matching the live database
+Photos: copy the restored folder back into `$VELOTHEQUE_DATA_DIR/photos/`, then `docker compose exec app velotheque normalize` rebuilds thumbnails and photo rows.
 
 ## CLI
 
@@ -351,7 +275,6 @@ docker compose exec app velotheque normalize         # rebuild normalized tables
 docker compose exec app velotheque regions load FRA ESP CHE   # or .gpkg files; see Regions
 docker compose exec app velotheque regions reload | list | remove CODE…
 docker compose exec app velotheque rebuild-derived   # drop and rebuild derived tables
-docker compose exec app velotheque backup-status --ok|--error MSG   # used by the backup service
 ```
 
 ## Read-only SQL access

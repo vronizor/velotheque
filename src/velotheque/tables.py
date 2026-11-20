@@ -399,17 +399,6 @@ route_region = Table(
     Index(None, "region_id"),
 )
 
-backup_status = Table(
-    "backup_status",
-    metadata,
-    Column("id", BigInteger, Identity(), primary_key=True),
-    Column("finished_at", TZ, nullable=False, server_default=func.now()),
-    Column("ok", Boolean, nullable=False),
-    Column("error", Text),
-    Column("details", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
-    Index(None, "ok", "finished_at"),
-)
-
 # Curated
 
 saved_view = Table(

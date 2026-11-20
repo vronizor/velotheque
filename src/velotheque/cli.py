@@ -82,18 +82,6 @@ def cmd_import_export(args) -> None:
             print(f"  {source_id}  {name}  [{gear}]")
 
 
-def cmd_backup_status(args) -> None:
-    import json
-
-    from velotheque.backup import record
-    from velotheque.db import get_engine
-
-    details = json.loads(args.details) if args.details else {}
-    with get_engine().begin() as conn:
-        record(conn, ok=args.ok, error=args.error, details=details)
-    print("recorded backup", "success" if args.ok else f"failure: {args.error}")
-
-
 def _print_report(report) -> None:
     for route_id, name in report.created:
         print(f"  + route #{route_id}  {name}")
@@ -240,12 +228,6 @@ def main(argv: list[str] | None = None) -> None:
     export = sub.add_parser("import-export", help="import a Strava bulk export zip")
     export.add_argument("zip", help="path to export_XXXX.zip")
     export.set_defaults(func=cmd_import_export)
-    status = sub.add_parser("backup-status", help="record the result of a host backup run")
-    outcome = status.add_mutually_exclusive_group(required=True)
-    outcome.add_argument("--ok", action="store_true", help="the run succeeded")
-    outcome.add_argument("--error", help="the run failed with this message")
-    status.add_argument("--details", help="JSON object with counts, sizes, file names")
-    status.set_defaults(func=cmd_backup_status)
     routes = sub.add_parser("routes", help="GPX route library").add_subparsers(
         dest="routes_command", required=True
     )
