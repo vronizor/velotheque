@@ -227,6 +227,35 @@ def test_service_type_with_events_cannot_be_deleted(conn, bikes):
         components.log_event(conn, other, wax, day(1))  # a service of another component
 
 
+def test_edit_event(conn, bikes):
+    road, _ = bikes
+    fork = components.create(conn, "Fork")
+    lowers = components.add_service_type(conn, fork, "Lowers", 1, 50, "hours")
+    full = components.add_service_type(conn, fork, "Full", 2, 200, "hours")
+    components.mount(conn, fork, road, day(0))
+    ride(conn, road, day(1), hours=10)
+    event = components.log_event(conn, fork, lowers, day(2))
+    ride(conn, road, day(3), hours=5)
+    assert used(conn, fork, "Full").used == 15
+
+    components.edit_event(conn, fork, event, full, day(2), "  Shop: Cycles Martin ")
+    (logged,) = components.events(conn, fork)
+    assert (logged.service_name, logged.notes) == ("Full", "Shop: Cycles Martin")
+    assert used(conn, fork, "Full").used == 5
+
+    components.edit_event(conn, fork, event, full, day(0), "Shop: Cycles Martin")
+    assert used(conn, fork, "Full").used == 15
+
+    with pytest.raises(ComponentError, match="Pick a service"):
+        components.edit_event(conn, fork, event, None, day(2), " ")
+    other = components.create(conn, "Other")
+    components.edit_event(conn, other, event, None, day(2), "not mine")
+    assert components.events(conn, fork)[0].notes == "Shop: Cycles Martin"
+    other_type = components.add_service_type(conn, other, "Wax", 1, 300, "km")
+    with pytest.raises(ComponentError):
+        components.edit_event(conn, fork, event, other_type, day(2), None)
+
+
 def test_component_filter(conn, bikes):
     road, trainer_bike = bikes
     chain = components.create(conn, "Chain")

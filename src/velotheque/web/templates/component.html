@@ -106,9 +106,24 @@
                 <td>{{ e.performed_at | local(zone) }}</td>
                 <td>{% if e.service_name %}{{ e.service_name }} <span class="muted small">L{{ e.level }}</span>{% else %}<span class="muted">note</span>{% endif %}</td>
                 <td class="col-name">{{ e.notes or "" }}</td>
-                <td>
+                <td class="actions">
+                  <button type="button" class="button secondary small-button" data-toggle-edit="event-{{ e.id }}" aria-expanded="false">Edit</button>
                   <form method="post" action="/components/{{ c.id }}/events/{{ e.id }}/delete" class="inline">
                     <button type="submit" class="chip-remove" aria-label="Delete this entry" title="Delete this entry">×</button>
+                  </form>
+                </td>
+              </tr>
+              <tr id="event-{{ e.id }}" class="event-edit" hidden>
+                <td colspan="4">
+                  <form class="service-form" method="post" action="/components/{{ c.id }}/events/{{ e.id }}">
+                    <label>What
+                      <select name="service_type_id">
+                        {% for u in usage %}<option value="{{ u.id }}"{% if u.id == e.service_type_id %} selected{% endif %}>{{ u.name }}</option>{% endfor %}
+                        <option value=""{% if e.service_type_id is none %} selected{% endif %}>Note only (resets nothing)</option>
+                      </select></label>
+                    <label>When <input type="datetime-local" name="at" value="{{ e.performed_at | local(zone, input_fmt) }}" required></label>
+                    <label class="wide">Notes <input type="text" name="notes" value="{{ e.notes or '' }}" maxlength="500" placeholder="e.g. shop, parts, price"></label>
+                    <button type="submit">Save</button>
                   </form>
                 </td>
               </tr>

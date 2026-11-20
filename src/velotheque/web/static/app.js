@@ -1027,6 +1027,18 @@ function initTagSuggestions() {
   );
 }
 
+function initEditToggles() {
+  document.querySelectorAll("[data-toggle-edit]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const target = document.getElementById(button.dataset.toggleEdit);
+      target.hidden = !target.hidden;
+      button.setAttribute("aria-expanded", String(!target.hidden));
+      button.textContent = target.hidden ? "Edit" : "Close";
+      if (!target.hidden) target.querySelector("input[name='notes']")?.focus();
+    }),
+  );
+}
+
 function initBulkEdit() {
   const picks = () => [...document.querySelectorAll("#results input[name='ids']")];
   const refresh = () => {
@@ -1117,6 +1129,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initRoute();
   initTagSuggestions();
   initBulkEdit();
+  initEditToggles();
   initCollapsibles();
   initLightbox();
 });

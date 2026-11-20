@@ -349,6 +349,13 @@ def copy_schedule(conn: Connection, from_id: int, to_id: int) -> int:
     return copied
 
 
+def _event_notes(service_type_id: int | None, notes: str | None) -> str | None:
+    notes = (notes or "").strip() or None
+    if service_type_id is None and not notes:
+        raise ComponentError("Pick a service, or write a note")
+    return notes
+
+
 def log_event(
     conn: Connection,
     component_id: int,
@@ -356,9 +363,7 @@ def log_event(
     at: datetime,
     notes: str | None = None,
 ) -> int:
-    notes = (notes or "").strip() or None
-    if service_type_id is None and not notes:
-        raise ComponentError("Pick a service, or write a note")
+    notes = _event_notes(service_type_id, notes)
     return _guarded(
         conn,
         insert(service_event)
@@ -370,6 +375,23 @@ def log_event(
         )
         .returning(service_event.c.id),
     ).scalar_one()
+
+
+def edit_event(
+    conn: Connection,
+    component_id: int,
+    event_id: int,
+    service_type_id: int | None,
+    at: datetime,
+    notes: str | None = None,
+) -> None:
+    notes = _event_notes(service_type_id, notes)
+    _guarded(
+        conn,
+        update(service_event)
+        .where(service_event.c.id == event_id, service_event.c.component_id == component_id)
+        .values(service_type_id=service_type_id, performed_at=at, notes=notes),
+    )
 
 
 def delete_event(conn: Connection, component_id: int, event_id: int) -> None:

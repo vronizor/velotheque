@@ -268,7 +268,8 @@ form.inline { display: inline; margin: 0; }
 .small-button { font-size: 0.8rem; padding: 3px 9px; }
 details.edit { margin: 4px 0; }
 details.edit > summary { cursor: pointer; color: var(--muted); }
-.history td.actions { white-space: nowrap; }
+.history td.actions, #log td.actions { white-space: nowrap; }
+#log tr.event-edit td { background: var(--cream); }
 .history input[type="datetime-local"] { width: 12.5rem; }
 .ride-components { margin: 16px 0; }
 .ride-components h2 { margin-bottom: 6px; }

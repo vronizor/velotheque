@@ -387,6 +387,32 @@ def event_add(
     )
 
 
+@router.post("/components/{component_id}/events/{event_id}")
+def event_edit(
+    component_id: int,
+    event_id: int,
+    service_type_id: str = Form(""),
+    at: str = Form(...),
+    notes: str = Form(""),
+    conn: Connection = Depends(get_conn),
+):
+    _component_or_404(conn, component_id)
+    zone = components.local_zone(conn)
+    return _done(
+        conn,
+        _page(component_id, "log"),
+        lambda: components.edit_event(
+            conn,
+            component_id,
+            event_id,
+            int(service_type_id) if service_type_id else None,
+            components.parse_local(at, zone),
+            notes,
+        ),
+        "Entry saved",
+    )
+
+
 @router.post("/components/{component_id}/events/{event_id}/delete")
 def event_delete(component_id: int, event_id: int, conn: Connection = Depends(get_conn)):
     _component_or_404(conn, component_id)

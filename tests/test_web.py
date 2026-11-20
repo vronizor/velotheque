@@ -1,4 +1,5 @@
 import json
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -324,7 +325,17 @@ def test_components_flow(client, db):
     )
     assert "error=" in logged.headers["location"]
     client.post(f"/components/{chain}/events", data={"service_type_id": "1", "next": "/components"})
-    assert "0 km / 100 km" in client.get(f"/components/{chain}").text
+    page = client.get(f"/components/{chain}")
+    assert "0 km / 100 km" in page.text
+    event_id = int(re.search(rf'/components/{chain}/events/(\d+)"', page.text).group(1))
+    edited = client.post(
+        f"/components/{chain}/events/{event_id}",
+        data={"service_type_id": "1", "at": "2026-09-01T09:30", "notes": "Shop: Atelier Vélo"},
+        follow_redirects=False,
+    )
+    assert edited.headers["location"].endswith("message=Entry+saved#log")
+    page = client.get(f"/components/{chain}")
+    assert "Shop: Atelier Vélo" in page.text and "2026-09-01T09:30" in page.text
 
     ride = client.get(f"/rides/{ride_id}")
     assert "On the bike" in ride.text and f"/components/{chain}" in ride.text
